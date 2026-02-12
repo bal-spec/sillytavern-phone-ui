@@ -1,0 +1,11 @@
+{
+    "display_name": "Phone UI",
+    "loading_order": 11,
+    "requires": [],
+    "optional": ["sd"],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "bal-spec",
+    "version": "1.0.0",
+    "homePage": "https://github.com/bal-spec/sillytavern-phone-ui"
+}

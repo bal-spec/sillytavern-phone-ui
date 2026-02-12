@@ -1,0 +1,89 @@
+{
+    "description": "SillyTavern preset items required by the Phone UI extension. Import these prompts and regex scripts into your preset to enable [IMG] photo generation and [VN] voice note playback in phone/IM interfaces.",
+    "prompts": [
+        {
+            "identifier": "1e256e6e-a3b6-4af8-9afd-6d2fd4055662",
+            "system_prompt": false,
+            "enabled": false,
+            "marker": false,
+            "name": "Text Message Photos 📱📸",
+            "role": "system",
+            "content": "### Text Message Photos Directive\n\nWhen the scene uses a text message or instant messaging format (Visual Toolkit phone/IM interface), {{char}} may naturally send photos as part of the conversation — selfies, snapshots of their surroundings, food, objects, or anything a person would photograph and text to someone.\n\n**When to trigger:**\n- {{char}} wants to show {{user}} something (their outfit, location, a reaction, something they found)\n- {{char}} references taking or sending a photo in dialogue\n- The conversation naturally calls for a visual (e.g. \"look at this\", \"here's me at...\", \"check this out\")\n- Do not force a photo every message; only when contextually organic\n\n**Visual Toolkit placeholder:**\nWithin the text message bubble HTML, include a placeholder container for the image. The first photo uses `data-phone-img=\"0\"`, the second `data-phone-img=\"1\"`, etc.:\n```html\n<div data-phone-img=\"0\" style=\"background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:12px;margin:4px 0;text-align:center;color:#888;font-size:0.85em;\">📸 <em>[brief description, e.g. \"selfie at the cafe\"]</em></div>\n```\nFor multiple photos in one message, increment the index:\n```html\n<div data-phone-img=\"1\" style=\"background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:12px;margin:4px 0;text-align:center;color:#888;font-size:0.85em;\">📸 <em>[second photo description]</em></div>\n```\nThe Phone UI extension will replace these placeholders with generated images and show the prompt in a disclosure triangle below each image.\n\n**Image Generation Prompt:**\nFor each photo placeholder, output a corresponding image generation prompt (100-150 words) wrapped in [IMG] and [/IMG] tags on their own lines. No code blocks. Multiple [IMG] blocks are allowed (one per photo, in order). Example:\n\n[IMG]\na smartphone selfie of...\n[/IMG]\n\nThe prompt describes what {{char}}'s phone camera captures:\n- **Selfies:** Describe {{char}}'s appearance (pull from character definitions), expression, angle (front-facing camera, arm extended or mirror), background environment. Use casual framing — slightly off-center, natural lighting, phone camera depth of field.\n- **Outward photos:** Describe the scene as framed through {{char}}'s rear camera — subject, composition, environment, lighting.\n- **Style:** Casual smartphone photography. Natural lighting, slight lens compression, candid feel. Not studio or professional unless {{char}} is deliberately posing.\n- **Subject details:** Always reference {{char}}'s defined appearance traits (hair, eyes, skin, build, clothing from current scene context). Be specific and visual.\n- **Format:** Single dense paragraph starting with \"a smartphone photo of\" or \"a smartphone selfie of\". End with two danbooru-style tags for key features.\n\nProhibitions:\n- Do not use the words \"photorealistic\" or \"realistic\".\n- Do not reference past states (\"now wearing\" / \"changed from\").\n- Do not generate prompts for {{user}}'s photos, only {{char}}'s.\n- Do not wrap the [IMG] block in a code block.\n\n{{addvar::t4::Text Message Photos\n}}",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [
+                "normal",
+                "continue",
+                "swipe",
+                "regenerate"
+            ],
+            "forbid_overrides": false
+        },
+        {
+            "identifier": "b163bc38-9f55-42dd-8108-5958484dc4c2",
+            "system_prompt": false,
+            "enabled": true,
+            "marker": false,
+            "name": "Text Message Voice Notes 🎤",
+            "role": "system",
+            "content": "### Text Message Voice Notes Directive\n\nWhen the scene uses a text message or instant messaging format (Visual Toolkit phone/IM interface), {{char}} may naturally send voice notes instead of typing — whispering a secret, laughing too hard to type, humming a tune, narrating something they're seeing, or any moment where speaking feels more natural than text.\n\n**When to trigger:**\n- {{char}} is emotional, excited, sleepy, or distracted (easier to talk than type)\n- {{char}} wants to convey tone that text can't capture (sarcasm, tenderness, teasing)\n- {{char}} is doing something with their hands (cooking, driving, walking)\n- {{char}} wants to be playful or intimate (whispered messages, singing, ASMR-like)\n- Do not force a voice note every message; only when contextually organic\n\n**What to generate:**\nWrite what {{char}} says or performs in the voice note wrapped in `[VN]` and `[/VN]` tags. This is the script that will be spoken aloud via TTS. Write it naturally — include pauses (with \"...\"), laughter (\"*laughs*\"), ambient descriptions for flavor, and natural speech patterns. Do NOT write stage directions; write speakable content.\n\n**Visual Toolkit placeholder:**\nWithin the text message bubble HTML, include a voice note placeholder with `data-phone-vn=\"0\"` (increment for multiple voice notes):\n```html\n<div data-phone-vn=\"0\" style=\"background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:12px;margin:4px 0;display:flex;align-items:center;gap:10px;color:#888;font-size:0.85em;\"><span style=\"font-size:1.4em;\">▶</span><span>Voice note</span><span style=\"color:#666;font-size:0.8em;\">0:07</span></div>\n```\nThe Phone UI extension will replace this placeholder with an interactive player (play button, animated waveform, click-to-play).\n\n**Voice note content tags:**\nAs part of the response (before or after the text message HTML), output the voice note content wrapped in [VN] and [/VN] tags on their own lines. No code blocks. Example:\n\n[VN]\n*laughs* Oh my god, you did NOT just say that... I'm literally crying right now. Okay okay wait, listen... *trying to compose herself* ...no I can't, I'm done.\n[/VN]\n\n**Guidelines:**\n- Keep voice notes short and natural (1-4 sentences typically)\n- Write for speech, not for reading — use contractions, filler words, natural rhythm\n- {{char}}'s speaking style should match their personality and current mood\n- Can include: whispers, laughter, humming, singing snippets, dramatic pauses, ambient narration\n- Do not wrap the [VN] block in a code block\n\n**Prohibitions:**\n- Do not generate voice notes for {{user}}, only {{char}}\n- Do not use both a photo and voice note in the same message unless very contextually appropriate\n- Do not describe actions in brackets like [sighs] — instead write speakable equivalents like \"*sighs*\"\n\n{{addvar::t4::Text Message Voice Notes\n}}",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [
+                "normal",
+                "continue",
+                "swipe",
+                "regenerate"
+            ],
+            "forbid_overrides": false
+        }
+    ],
+    "prompt_order_entries": [
+        {
+            "identifier": "1e256e6e-a3b6-4af8-9afd-6d2fd4055662",
+            "enabled": false
+        },
+        {
+            "identifier": "b163bc38-9f55-42dd-8108-5958484dc4c2",
+            "enabled": true
+        }
+    ],
+    "regex_scripts": [
+        {
+            "id": "426bc96d-ecda-4e9d-9807-58c8d16e5a61",
+            "scriptName": "Strip IMG Tags from Context",
+            "findRegex": "/\\[IMG\\][\\s\\S]*?\\[\\/IMG\\]/gi",
+            "replaceString": "",
+            "trimStrings": [],
+            "placement": [
+                2
+            ],
+            "disabled": false,
+            "markdownOnly": false,
+            "promptOnly": true,
+            "runOnEdit": false,
+            "substituteRegex": 0,
+            "minDepth": 0,
+            "maxDepth": null
+        },
+        {
+            "id": "142cc976-3ed4-4bcb-8b91-211aa363c60f",
+            "scriptName": "Strip VN Tags from Context",
+            "findRegex": "/\\[VN\\][\\s\\S]*?\\[\\/VN\\]/gi",
+            "replaceString": "",
+            "trimStrings": [],
+            "placement": [
+                2
+            ],
+            "disabled": false,
+            "markdownOnly": false,
+            "promptOnly": true,
+            "runOnEdit": false,
+            "substituteRegex": 0,
+            "minDepth": 0,
+            "maxDepth": null
+        }
+    ]
+}

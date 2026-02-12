@@ -1,0 +1,224 @@
+/* Phone UI Extension Styles */
+
+/* Image container */
+.phone-img-container {
+    position: relative;
+    display: inline-block;
+    margin: 4px 0;
+    max-width: 280px;
+}
+
+.phone-img {
+    max-width: 280px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: block;
+    transition: opacity 0.3s ease;
+}
+
+.phone-img.fading {
+    opacity: 0.3;
+}
+
+/* Carousel navigation arrows */
+.phone-img-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 2;
+}
+
+.phone-img-container:hover .phone-img-nav {
+    opacity: 1;
+}
+
+.phone-img-nav:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.phone-img-nav-left {
+    left: 6px;
+}
+
+.phone-img-nav-right {
+    right: 6px;
+}
+
+/* Image counter pill */
+.phone-img-counter {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.phone-img-container:hover .phone-img-counter {
+    opacity: 1;
+}
+
+/* Prompt disclosure */
+.phone-img-details {
+    margin-top: 4px;
+    font-size: 0.8em;
+    color: #888;
+}
+
+.phone-img-details summary {
+    cursor: pointer;
+    color: #666;
+    font-size: 0.85em;
+    user-select: none;
+}
+
+.phone-img-details summary:hover {
+    color: #aaa;
+}
+
+.phone-img-prompt {
+    margin-top: 4px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: #999;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* Loading state */
+.phone-img-loading {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 24px 12px;
+    margin: 4px 0;
+    text-align: center;
+    color: #888;
+    font-size: 0.85em;
+    max-width: 280px;
+}
+
+.phone-img-spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid #333;
+    border-top-color: #888;
+    border-radius: 50%;
+    animation: phone-spin 0.8s linear infinite;
+    margin-bottom: 6px;
+}
+
+@keyframes phone-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Voice note player */
+.phone-vn-container {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 280px;
+}
+
+.phone-vn-play-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #333;
+    border: none;
+    color: #ccc;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s;
+}
+
+.phone-vn-play-btn:hover {
+    background: #444;
+}
+
+.phone-vn-play-btn.playing {
+    background: #25d366;
+    color: #fff;
+}
+
+/* Waveform */
+.phone-vn-waveform {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 20px;
+}
+
+.phone-vn-bar {
+    display: inline-block;
+    width: 3px;
+    background: #555;
+    border-radius: 1px;
+    transition: background 0.2s;
+}
+
+.phone-vn-waveform.playing .phone-vn-bar {
+    background: #25d366;
+    animation: phone-vn-pulse 0.6s ease-in-out infinite alternate;
+}
+
+.phone-vn-waveform.playing .phone-vn-bar:nth-child(2n) {
+    animation-delay: 0.1s;
+}
+
+.phone-vn-waveform.playing .phone-vn-bar:nth-child(3n) {
+    animation-delay: 0.2s;
+}
+
+.phone-vn-waveform.playing .phone-vn-bar:nth-child(5n) {
+    animation-delay: 0.15s;
+}
+
+@keyframes phone-vn-pulse {
+    0% { transform: scaleY(0.6); }
+    100% { transform: scaleY(1.2); }
+}
+
+/* Duration label */
+.phone-vn-duration {
+    color: #666;
+    font-size: 0.8em;
+    flex-shrink: 0;
+    min-width: 28px;
+    text-align: right;
+}
