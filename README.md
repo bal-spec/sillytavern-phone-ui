@@ -1,6 +1,6 @@
 # Phone UI Extension for SillyTavern
 
-![UX](https://github.com/user-attachments/assets/810fbb7c-6edc-4f16-a705-98de78b7aa8e)
+![screenshot](https://github.com/user-attachments/assets/8274c5c5-552a-43eb-8a5c-7f983658ae0f)
 
 A SillyTavern extension that adds interactive phone media to text message / IM conversations. When a character sends a message through a phone-styled UI (via the Visual Toolkit), this extension:
 
