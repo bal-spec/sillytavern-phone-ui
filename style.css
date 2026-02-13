@@ -143,11 +143,9 @@
     border: 1px solid #333;
     border-radius: 8px;
     padding: 10px 12px;
-    margin: 4px 0;
     display: flex;
     align-items: center;
     gap: 10px;
-    max-width: 280px;
 }
 
 .phone-vn-play-btn {
@@ -221,4 +219,94 @@
     flex-shrink: 0;
     min-width: 28px;
     text-align: right;
+}
+
+/* Voice note wrapper (player + editor) */
+.phone-vn-wrapper {
+    max-width: 280px;
+    margin: 4px 0;
+}
+
+/* Edit button */
+.phone-vn-edit-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid #444;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.phone-vn-edit-btn:hover {
+    background: #333;
+    color: #ccc;
+    border-color: #666;
+}
+
+/* Voice note editor */
+.phone-vn-editor {
+    margin-top: 4px;
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.phone-vn-editor-textarea {
+    width: 100%;
+    min-height: 60px;
+    background: #111122;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #ccc;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85em;
+    line-height: 1.4;
+    padding: 6px 8px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.phone-vn-editor-textarea:focus {
+    outline: none;
+    border-color: #25d366;
+}
+
+.phone-vn-editor-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.phone-vn-editor-actions button {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #333;
+    color: #ccc;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.phone-vn-editor-actions button:hover {
+    background: #444;
+    border-color: #666;
+}
+
+.phone-vn-save-play-btn {
+    background: #1a4a2e !important;
+    border-color: #25d366 !important;
+}
+
+.phone-vn-save-play-btn:hover {
+    background: #25d366 !important;
+    color: #fff !important;
 }
