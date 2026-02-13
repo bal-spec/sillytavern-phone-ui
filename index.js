@@ -22,6 +22,27 @@ function buildWaveformBars() {
 }
 
 /**
+ * Estimate TTS duration from text. Assumes ~150 words per minute.
+ * @param {string} text
+ * @returns {number} seconds (minimum 2)
+ */
+function estimateTtsDuration(text) {
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    return Math.max(2, Math.round(words / 2.5));
+}
+
+/**
+ * Format seconds as m:ss.
+ * @param {number} seconds
+ * @returns {string}
+ */
+function formatDuration(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
  * Find the Nth placeholder element in the rendered message by data attribute,
  * falling back to content-based matching.
  * @param {JQuery} mesText - The .mes_text element
@@ -110,11 +131,12 @@ function buildLoadingPlaceholder() {
  */
 function buildVoiceNotePlayer(vnText) {
     const escapedText = $('<span>').text(vnText).html();
+    const duration = formatDuration(estimateTtsDuration(vnText));
     return `<div class="phone-vn-wrapper">
         <div class="phone-vn-container">
             <button class="phone-vn-play-btn" title="Play voice note">&#9654;</button>
             <div class="phone-vn-waveform">${buildWaveformBars()}</div>
-            <span class="phone-vn-duration">0:07</span>
+            <span class="phone-vn-duration">${duration}</span>
             <button class="phone-vn-edit-btn" title="Edit voice note text">&#9998;</button>
         </div>
         <div class="phone-vn-editor" style="display:none;">
@@ -516,6 +538,7 @@ function bindVnEditHandler(wrapper, messageId, vnIndex) {
         message.mes = replaceNthVnTag(message.mes, vnIndex, newText);
 
         editor.hide();
+        wrapper.find('.phone-vn-duration').text(formatDuration(estimateTtsDuration(newText)));
         await saveChatConditional();
         console.log(`[${MODULE_NAME}] Updated VN text for vn${vnIndex} in message ${messageId}`);
     }
