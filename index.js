@@ -368,34 +368,43 @@ function restoreVoiceNote(mesText, media, index, messageId) {
  * @returns {Promise<void>}
  */
 function waitForTtsPlayback() {
-    return new Promise((resolve) => {
-        const audioEl = document.getElementById('tts_audio');
-        if (!audioEl) {
-            resolve();
-            return;
-        }
+    const audioEl = document.getElementById('tts_audio');
 
-        let started = false;
-        const onPlay = () => { started = true; };
-        const onEnded = () => { cleanup(); resolve(); };
-        const onError = () => { cleanup(); resolve(); };
+    if (!audioEl) {
+        const resolved = Promise.resolve();
+        return { started: resolved, ended: resolved };
+    }
 
-        const cleanup = () => {
-            audioEl.removeEventListener('play', onPlay);
-            audioEl.removeEventListener('ended', onEnded);
-            audioEl.removeEventListener('error', onError);
-            clearTimeout(timeout);
-        };
+    let resolveStarted, resolveEnded;
+    const started = new Promise((r) => { resolveStarted = r; });
+    const ended = new Promise((r) => { resolveEnded = r; });
 
-        audioEl.addEventListener('play', onPlay);
-        audioEl.addEventListener('ended', onEnded);
-        audioEl.addEventListener('error', onError);
+    let hasStarted = false;
 
-        // Safety timeout — if nothing plays within 15s, resolve anyway
-        const timeout = setTimeout(() => {
-            if (!started) { cleanup(); resolve(); }
-        }, 15000);
-    });
+    const cleanup = () => {
+        audioEl.removeEventListener('play', onPlay);
+        audioEl.removeEventListener('ended', onEnded);
+        audioEl.removeEventListener('error', onError);
+        clearTimeout(timeout);
+    };
+
+    const onPlay = () => {
+        hasStarted = true;
+        resolveStarted();
+    };
+    const onEnded = () => { cleanup(); resolveEnded(); };
+    const onError = () => { cleanup(); resolveStarted(); resolveEnded(); };
+
+    audioEl.addEventListener('play', onPlay);
+    audioEl.addEventListener('ended', onEnded);
+    audioEl.addEventListener('error', onError);
+
+    // Safety timeout — if nothing plays within 15s, resolve anyway
+    const timeout = setTimeout(() => {
+        if (!hasStarted) { cleanup(); resolveStarted(); resolveEnded(); }
+    }, 15000);
+
+    return { started, ended };
 }
 
 /**
@@ -410,10 +419,9 @@ function bindVoiceNotePlayer(player, messageId, vnIndex) {
     const waveform = player.find('.phone-vn-waveform');
 
     playBtn.off('click').on('click', async function () {
-        if (playBtn.hasClass('playing')) return;
+        if (playBtn.hasClass('playing') || playBtn.hasClass('loading')) return;
 
-        playBtn.addClass('playing').html('&#9646;&#9646;');
-        waveform.addClass('playing');
+        playBtn.addClass('loading').empty();
 
         try {
             const message = chat[messageId];
@@ -428,16 +436,21 @@ function bindVoiceNotePlayer(player, messageId, vnIndex) {
                 console.warn(`[${MODULE_NAME}] Voice note text empty after cleaning`);
                 return;
             }
-            const playbackDone = waitForTtsPlayback();
+            const { started, ended } = waitForTtsPlayback();
             await executeSlashCommandsWithOptions(
                 `/speak voice="${voice}" ${ttsText}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
-            await playbackDone;
+            await started;
+
+            playBtn.removeClass('loading').addClass('playing').html('&#9646;&#9646;');
+            waveform.addClass('playing');
+
+            await ended;
         } catch (error) {
             console.error(`[${MODULE_NAME}] Voice note playback failed:`, error);
         } finally {
-            playBtn.removeClass('playing').html('&#9654;');
+            playBtn.removeClass('playing loading').html('&#9654;');
             waveform.removeClass('playing');
         }
     });

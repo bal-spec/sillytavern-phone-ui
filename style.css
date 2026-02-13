@@ -168,6 +168,15 @@
     background: #444;
 }
 
+.phone-vn-play-btn.loading {
+    background: #333;
+    border: 3px solid #555;
+    border-top-color: #ccc;
+    animation: phone-spin 0.8s linear infinite;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
 .phone-vn-play-btn.playing {
     background: #25d366;
     color: #fff;
