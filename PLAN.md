@@ -13,8 +13,8 @@ It depends on the LLM being instructed (via preset directives) to:
 
 ```
 phone-ui/
-  index.js                    — Extension logic (510 lines)
-  style.css                   — Image carousel + voice note player styles
+  index.js                    — Extension logic (~770 lines)
+  style.css                   — Image carousel + voice note player + editor styles
   manifest.json               — SillyTavern extension manifest
   phone-ui-preset-items.json  — Standalone preset items for any preset
   PLAN.md                     — This file
@@ -106,9 +106,21 @@ Replaces the old single-regenerate button with left/right navigation:
 
 - **Left arrow** (`<`): Decrement `activeIndex`, swap `img.src`, update counter. Hidden on first image.
 - **Right arrow on non-last image** (`>`): Increment `activeIndex`, swap `img.src`.
-- **Right arrow on last image**: Calls `/imagine` to generate a new variant, appends URL to `urls[]`, increments index, saves chat.
+- **Right arrow on last image**: Calls `/imagine` to generate a new variant, appends URL to `urls[]`, increments index, saves chat. Shows a spinner overlay on the dimmed image during generation.
 - **Counter pill** (`1/3`): Shows on hover, hidden when only one image.
 - Arrows and counter appear on hover via CSS opacity transition.
+
+### Image Prompt Editor (`bindImageEditHandler`)
+
+A pencil edit button overlaid on the image (bottom-right, appears on hover like the nav arrows) opens an inline editor below the image:
+
+- **Edit button click**: Toggles editor visibility, populates textarea from `media.prompt`
+- **Save**: Updates `media.prompt`, hides editor, saves chat
+- **Save & Generate**: Updates prompt, fades image with spinner overlay, calls `/imagine` with the new prompt, appends result to `urls[]`, updates counter, saves chat
+
+### Slash Command (`/phone-ui`)
+
+Manually re-triggers processing for all character messages in the current chat. Clears the `processedMessages` set for each message and re-runs `onCharacterMessageRendered`. Useful when the extension fails to trigger automatically on render.
 
 ### Voice Note TTS (`bindVoiceNotePlayer`)
 

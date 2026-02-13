@@ -1,10 +1,12 @@
 import { eventSource, event_types, chat, saveChatConditional, name2 } from '../../../../script.js';
 import { executeSlashCommandsWithOptions } from '../../../slash-commands.js';
+import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
+import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 
 const MODULE_NAME = 'phone-ui';
 const IMG_TAG_REGEX = /\[IMG\]\s*([\s\S]*?)\s*\[\/IMG\]/gi;
 const VN_TAG_REGEX = /\[VN\]\s*([\s\S]*?)\s*\[\/VN\]/gi;
-const STRIP_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]|\[VN\][\s\S]*?\[\/VN\]/gi; // used for message.mes stripping
+const STRIP_IMG_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]/gi; // used for message.mes stripping (VN tags kept for edit flow)
 
 const BAR_HEIGHTS = [8, 14, 6, 18, 10, 16, 7, 12, 5, 15, 9, 13];
 
@@ -19,6 +21,27 @@ function buildWaveformBars() {
     return BAR_HEIGHTS.map(h =>
         `<span class="phone-vn-bar" style="height:${h}px;"></span>`,
     ).join('');
+}
+
+/**
+ * Estimate TTS duration from text. Assumes ~150 words per minute.
+ * @param {string} text
+ * @returns {number} seconds (minimum 2)
+ */
+function estimateTtsDuration(text) {
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    return Math.max(2, Math.round(words / 2.5));
+}
+
+/**
+ * Format seconds as m:ss.
+ * @param {number} seconds
+ * @returns {string}
+ */
+function formatDuration(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -80,15 +103,21 @@ function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0) {
     const hideLeft = activeIndex === 0 ? ' style="display:none;"' : '';
     const counterText = totalImages > 1 ? `${activeIndex + 1}/${totalImages}` : '';
     const counterHidden = totalImages <= 1 ? ' style="display:none;"' : '';
-    return `<div class="phone-img-container">
-        <img class="phone-img" src="${url}" alt="Generated image" />
-        <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
-        <button class="phone-img-nav phone-img-nav-right" title="Next">\u203A</button>
-        <span class="phone-img-counter"${counterHidden}>${counterText}</span>
-        <details class="phone-img-details">
-            <summary>prompt</summary>
-            <div class="phone-img-prompt">${escapedPrompt}</div>
-        </details>
+    return `<div class="phone-img-wrapper">
+        <div class="phone-img-container">
+            <img class="phone-img" src="${url}" alt="Generated image" />
+            <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
+            <button class="phone-img-nav phone-img-nav-right" title="Next">\u203A</button>
+            <span class="phone-img-counter"${counterHidden}>${counterText}</span>
+            <button class="phone-img-edit-btn" title="Edit prompt">&#9998;</button>
+        </div>
+        <div class="phone-img-editor" style="display:none;">
+            <textarea class="phone-img-editor-textarea">${escapedPrompt}</textarea>
+            <div class="phone-img-editor-actions">
+                <button class="phone-img-save-btn">Save</button>
+                <button class="phone-img-save-gen-btn">Save &amp; Generate</button>
+            </div>
+        </div>
     </div>`;
 }
 
@@ -105,13 +134,26 @@ function buildLoadingPlaceholder() {
 
 /**
  * Build the interactive voice note player HTML.
+ * @param {string} vnText - The voice note text for the editor
  * @returns {string}
  */
-function buildVoiceNotePlayer() {
-    return `<div class="phone-vn-container">
-        <button class="phone-vn-play-btn" title="Play voice note">&#9654;</button>
-        <div class="phone-vn-waveform">${buildWaveformBars()}</div>
-        <span class="phone-vn-duration">0:07</span>
+function buildVoiceNotePlayer(vnText) {
+    const escapedText = $('<span>').text(vnText).html();
+    const duration = formatDuration(estimateTtsDuration(vnText));
+    return `<div class="phone-vn-wrapper">
+        <div class="phone-vn-container">
+            <button class="phone-vn-play-btn" title="Play voice note">&#9654;</button>
+            <div class="phone-vn-waveform">${buildWaveformBars()}</div>
+            <span class="phone-vn-duration">${duration}</span>
+            <button class="phone-vn-edit-btn" title="Edit voice note text">&#9998;</button>
+        </div>
+        <div class="phone-vn-editor" style="display:none;">
+            <textarea class="phone-vn-editor-textarea">${escapedText}</textarea>
+            <div class="phone-vn-editor-actions">
+                <button class="phone-vn-save-btn">Save</button>
+                <button class="phone-vn-save-play-btn">Save &amp; Play</button>
+            </div>
+        </div>
     </div>`;
 }
 
@@ -201,21 +243,31 @@ async function onCharacterMessageRendered(messageId) {
     const mesText = messageElement.find('.mes_text');
     if (!mesText.length) return;
 
-    // Check for restore: no tags in mes but phoneMedia exists
+    // Check for restore vs first-gen
     const hasImgTags = /\[IMG\]/i.test(messageText);
     const hasVnTags = /\[VN\]/i.test(messageText);
     const phoneMedia = message.extra?.phoneMedia;
 
-    if (!hasImgTags && !hasVnTags && phoneMedia && Object.keys(phoneMedia).length > 0) {
-        // Restore mode — re-render previously generated media into placeholders
+    // VN tags now persist in message.mes, so VN restore is detected by having phoneMedia vn entries
+    const hasVnMedia = phoneMedia && Object.keys(phoneMedia).some(k => k.startsWith('vn'));
+    const hasImgMedia = phoneMedia && Object.keys(phoneMedia).some(k => !k.startsWith('vn'));
+
+    // IMG restore: no IMG tags in mes but phoneMedia has image entries (tags were stripped on first gen)
+    // VN restore: VN tags in mes AND phoneMedia has vn entries (tags kept, media already generated)
+    const imgNeedsGen = hasImgTags;
+    const vnNeedsGen = hasVnTags && !hasVnMedia;
+
+    // Restore mode — nothing needs first-gen processing
+    if (!imgNeedsGen && !vnNeedsGen && phoneMedia && Object.keys(phoneMedia).length > 0) {
         processedMessages.add(messageId);
+        stripTagsFromDOM(mesText);
         for (const [idxStr, media] of Object.entries(phoneMedia)) {
-            const idx = parseInt(idxStr, 10);
             if (media.type === 'image') {
+                const idx = parseInt(idxStr, 10);
                 restoreImage(mesText, media, idx);
             }
-            // Voice notes don't restore audio — just upgrade the placeholder visuals
             if (media.type === 'voice_note') {
+                const idx = parseInt(idxStr.replace('vn', ''), 10);
                 restoreVoiceNote(mesText, media, idx, messageId);
             }
         }
@@ -234,8 +286,8 @@ async function onCharacterMessageRendered(messageId) {
     if (!message.extra) message.extra = {};
     if (!message.extra.phoneMedia) message.extra.phoneMedia = {};
 
-    // Strip [IMG] and [VN] tags from message text
-    message.mes = message.mes.replace(STRIP_TAGS_REGEX, '').trim();
+    // Strip [IMG] tags from message text (VN tags kept for edit flow)
+    message.mes = message.mes.replace(STRIP_IMG_TAGS_REGEX, '').trim();
 
     // Strip from rendered DOM BEFORE processing placeholders,
     // so Range deletion doesn't remove players we're about to insert
@@ -249,7 +301,7 @@ async function onCharacterMessageRendered(messageId) {
         console.log(`[${MODULE_NAME}] Found [VN] tag #${i} in message ${messageId}`);
 
         const placeholder = findPlaceholder(mesText, 'data-phone-vn', i, '\u25B6');
-        const playerHtml = buildVoiceNotePlayer();
+        const playerHtml = buildVoiceNotePlayer(vnText);
 
         if (placeholder) {
             placeholder.replaceWith(playerHtml);
@@ -257,9 +309,11 @@ async function onCharacterMessageRendered(messageId) {
             mesText.append(playerHtml);
         }
 
-        // Bind click-to-play on the newly inserted player
-        const player = mesText.find('.phone-vn-container').eq(i);
-        bindVoiceNotePlayer(player, vnText);
+        // Bind click-to-play and edit handler on the newly inserted player
+        const wrapper = mesText.find('.phone-vn-wrapper').eq(i);
+        const player = wrapper.find('.phone-vn-container');
+        bindVoiceNotePlayer(player, messageId, i);
+        bindVnEditHandler(wrapper, messageId, i);
 
         message.extra.phoneMedia[`vn${i}`] = { type: 'voice_note', text: vnText };
     }
@@ -325,14 +379,17 @@ async function onCharacterMessageRendered(messageId) {
  */
 function restoreVoiceNote(mesText, media, index, messageId) {
     const placeholder = findPlaceholder(mesText, 'data-phone-vn', index, '\u25B6');
-    const playerHtml = buildVoiceNotePlayer();
+    const playerHtml = buildVoiceNotePlayer(media.text);
     if (placeholder) {
         placeholder.replaceWith(playerHtml);
+    } else {
+        mesText.append(playerHtml);
     }
-    // Bind after all restorations via rebindVoiceNotePlayers
-    const player = mesText.find('.phone-vn-container').last();
-    if (player.length) {
-        bindVoiceNotePlayer(player, media.text);
+    const wrapper = mesText.find('.phone-vn-wrapper').last();
+    if (wrapper.length) {
+        const player = wrapper.find('.phone-vn-container');
+        bindVoiceNotePlayer(player, messageId, index);
+        bindVnEditHandler(wrapper, messageId, index);
     }
 }
 
@@ -341,69 +398,255 @@ function restoreVoiceNote(mesText, media, index, messageId) {
  * @returns {Promise<void>}
  */
 function waitForTtsPlayback() {
-    return new Promise((resolve) => {
-        const audioEl = document.getElementById('tts_audio');
-        if (!audioEl) {
-            resolve();
-            return;
-        }
+    const audioEl = document.getElementById('tts_audio');
 
-        let started = false;
-        const onPlay = () => { started = true; };
-        const onEnded = () => { cleanup(); resolve(); };
-        const onError = () => { cleanup(); resolve(); };
+    if (!audioEl) {
+        const resolved = Promise.resolve();
+        return { started: resolved, ended: resolved };
+    }
 
-        const cleanup = () => {
-            audioEl.removeEventListener('play', onPlay);
-            audioEl.removeEventListener('ended', onEnded);
-            audioEl.removeEventListener('error', onError);
-            clearTimeout(timeout);
-        };
+    let resolveStarted, resolveEnded;
+    const started = new Promise((r) => { resolveStarted = r; });
+    const ended = new Promise((r) => { resolveEnded = r; });
 
-        audioEl.addEventListener('play', onPlay);
-        audioEl.addEventListener('ended', onEnded);
-        audioEl.addEventListener('error', onError);
+    let hasStarted = false;
 
-        // Safety timeout — if nothing plays within 15s, resolve anyway
-        const timeout = setTimeout(() => {
-            if (!started) { cleanup(); resolve(); }
-        }, 15000);
-    });
+    const cleanup = () => {
+        audioEl.removeEventListener('play', onPlay);
+        audioEl.removeEventListener('ended', onEnded);
+        audioEl.removeEventListener('error', onError);
+        clearTimeout(timeout);
+    };
+
+    const onPlay = () => {
+        hasStarted = true;
+        resolveStarted();
+    };
+    const onEnded = () => { cleanup(); resolveEnded(); };
+    const onError = () => { cleanup(); resolveStarted(); resolveEnded(); };
+
+    audioEl.addEventListener('play', onPlay);
+    audioEl.addEventListener('ended', onEnded);
+    audioEl.addEventListener('error', onError);
+
+    // Safety timeout — if nothing plays within 15s, resolve anyway
+    const timeout = setTimeout(() => {
+        if (!hasStarted) { cleanup(); resolveStarted(); resolveEnded(); }
+    }, 15000);
+
+    return { started, ended };
 }
 
 /**
  * Bind click-to-play handler on a voice note player element.
+ * Reads current text from phoneMedia so edits are reflected without re-binding.
  * @param {JQuery} player
- * @param {string} vnText
+ * @param {number} messageId
+ * @param {number} vnIndex
  */
-function bindVoiceNotePlayer(player, vnText) {
+function bindVoiceNotePlayer(player, messageId, vnIndex) {
     const playBtn = player.find('.phone-vn-play-btn');
     const waveform = player.find('.phone-vn-waveform');
 
     playBtn.off('click').on('click', async function () {
-        if (playBtn.hasClass('playing')) return;
+        if (playBtn.hasClass('playing') || playBtn.hasClass('loading')) return;
 
-        playBtn.addClass('playing').html('&#9646;&#9646;');
-        waveform.addClass('playing');
+        playBtn.addClass('loading').empty();
 
         try {
+            const message = chat[messageId];
+            const vnText = message?.extra?.phoneMedia?.[`vn${vnIndex}`]?.text;
+            if (!vnText) {
+                console.warn(`[${MODULE_NAME}] No voice note text found for vn${vnIndex}`);
+                return;
+            }
             const voice = name2 || 'default';
             const ttsText = cleanVnTextForTts(vnText);
             if (!ttsText) {
                 console.warn(`[${MODULE_NAME}] Voice note text empty after cleaning`);
                 return;
             }
-            const playbackDone = waitForTtsPlayback();
+            const { started, ended } = waitForTtsPlayback();
             await executeSlashCommandsWithOptions(
                 `/speak voice="${voice}" ${ttsText}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
-            await playbackDone;
+            await started;
+
+            playBtn.removeClass('loading').addClass('playing').html('&#9646;&#9646;');
+            waveform.addClass('playing');
+
+            await ended;
         } catch (error) {
             console.error(`[${MODULE_NAME}] Voice note playback failed:`, error);
         } finally {
-            playBtn.removeClass('playing').html('&#9654;');
+            playBtn.removeClass('playing loading').html('&#9654;');
             waveform.removeClass('playing');
+        }
+    });
+}
+
+/**
+ * Replace the content of the Nth [VN]...[/VN] tag in message text.
+ * @param {string} mes - The message text
+ * @param {number} index - Which VN tag to replace (0-based)
+ * @param {string} newText - The new content
+ * @returns {string}
+ */
+function replaceNthVnTag(mes, index, newText) {
+    let count = 0;
+    // Use a fresh regex to avoid lastIndex issues with the global VN_TAG_REGEX
+    const regex = /\[VN\]\s*([\s\S]*?)\s*\[\/VN\]/gi;
+    return mes.replace(regex, (match, content) => {
+        if (count++ === index) {
+            return `[VN]${newText}[/VN]`;
+        }
+        return match;
+    });
+}
+
+/**
+ * Bind edit button and save handlers on a voice note wrapper.
+ * @param {JQuery} wrapper - The .phone-vn-wrapper element
+ * @param {number} messageId
+ * @param {number} vnIndex
+ */
+function bindVnEditHandler(wrapper, messageId, vnIndex) {
+    const editBtn = wrapper.find('.phone-vn-edit-btn');
+    const editor = wrapper.find('.phone-vn-editor');
+    const textarea = wrapper.find('.phone-vn-editor-textarea');
+    const saveBtn = wrapper.find('.phone-vn-save-btn');
+    const savePlayBtn = wrapper.find('.phone-vn-save-play-btn');
+
+    editBtn.off('click').on('click', function () {
+        if (editor.is(':visible')) {
+            editor.hide();
+        } else {
+            // Refresh textarea with current text from phoneMedia
+            const message = chat[messageId];
+            const currentText = message?.extra?.phoneMedia?.[`vn${vnIndex}`]?.text || '';
+            textarea.val(currentText);
+            editor.show();
+        }
+    });
+
+    async function saveVnText() {
+        const newText = textarea.val().trim();
+        if (!newText) return;
+
+        const message = chat[messageId];
+        if (!message) return;
+
+        // Update phoneMedia
+        if (message.extra?.phoneMedia?.[`vn${vnIndex}`]) {
+            message.extra.phoneMedia[`vn${vnIndex}`].text = newText;
+        }
+
+        // Update [VN] tag in message.mes
+        message.mes = replaceNthVnTag(message.mes, vnIndex, newText);
+
+        editor.hide();
+        wrapper.find('.phone-vn-duration').text(formatDuration(estimateTtsDuration(newText)));
+        await saveChatConditional();
+        console.log(`[${MODULE_NAME}] Updated VN text for vn${vnIndex} in message ${messageId}`);
+    }
+
+    saveBtn.off('click').on('click', async function () {
+        await saveVnText();
+    });
+
+    savePlayBtn.off('click').on('click', async function () {
+        await saveVnText();
+
+        // Trigger playback with the new text
+        const playBtn = wrapper.find('.phone-vn-play-btn');
+        playBtn.trigger('click');
+    });
+}
+
+/**
+ * Bind edit button and save handlers on an image wrapper.
+ * @param {JQuery} wrapper - The .phone-img-wrapper element
+ * @param {number} messageId
+ * @param {number} imgIndex
+ */
+function bindImageEditHandler(wrapper, messageId, imgIndex) {
+    const editBtn = wrapper.find('.phone-img-edit-btn');
+    const editor = wrapper.find('.phone-img-editor');
+    const textarea = wrapper.find('.phone-img-editor-textarea');
+    const saveBtn = wrapper.find('.phone-img-save-btn');
+    const saveGenBtn = wrapper.find('.phone-img-save-gen-btn');
+
+    editBtn.off('click').on('click', function () {
+        if (editor.is(':visible')) {
+            editor.hide();
+        } else {
+            const message = chat[messageId];
+            const currentPrompt = message?.extra?.phoneMedia?.[imgIndex]?.prompt || '';
+            textarea.val(currentPrompt);
+            editor.show();
+        }
+    });
+
+    saveBtn.off('click').on('click', async function () {
+        const newPrompt = textarea.val().trim();
+        if (!newPrompt) return;
+
+        const message = chat[messageId];
+        if (!message?.extra?.phoneMedia?.[imgIndex]) return;
+
+        message.extra.phoneMedia[imgIndex].prompt = newPrompt;
+        editor.hide();
+        await saveChatConditional();
+        console.log(`[${MODULE_NAME}] Updated prompt for image #${imgIndex} in message ${messageId}`);
+    });
+
+    saveGenBtn.off('click').on('click', async function () {
+        const newPrompt = textarea.val().trim();
+        if (!newPrompt) return;
+
+        const message = chat[messageId];
+        const media = message?.extra?.phoneMedia?.[imgIndex];
+        if (!media) return;
+
+        media.prompt = newPrompt;
+        editor.hide();
+
+        const container = wrapper.find('.phone-img-container');
+        const img = container.find('.phone-img');
+        const leftBtn = container.find('.phone-img-nav-left');
+        const rightBtn = container.find('.phone-img-nav-right');
+        const counter = container.find('.phone-img-counter');
+
+        img.addClass('fading');
+        const spinner = $('<div class="phone-img-overlay-spinner"></div>');
+        container.append(spinner);
+        editBtn.prop('disabled', true);
+        rightBtn.prop('disabled', true);
+
+        try {
+            const result = await executeSlashCommandsWithOptions(
+                `/imagine quiet=true ${newPrompt}`,
+                { handleParserErrors: true, handleExecutionErrors: true },
+            );
+
+            const newUrl = result?.pipe;
+            if (newUrl) {
+                media.urls.push(newUrl);
+                media.activeIndex = media.urls.length - 1;
+                img.attr('src', newUrl);
+                counter.text(`${media.activeIndex + 1}/${media.urls.length}`).show();
+                leftBtn.show();
+                await saveChatConditional();
+                console.log(`[${MODULE_NAME}] Generated new image with updated prompt for #${imgIndex} in message ${messageId}`);
+            }
+        } catch (error) {
+            console.error(`[${MODULE_NAME}] Image generation failed:`, error);
+        } finally {
+            img.removeClass('fading');
+            spinner.remove();
+            editBtn.prop('disabled', false);
+            rightBtn.prop('disabled', false);
         }
     });
 }
@@ -414,12 +657,15 @@ function bindVoiceNotePlayer(player, vnText) {
  * @param {number} messageId
  */
 function bindCarouselHandlers(mesText, messageId) {
-    mesText.find('.phone-img-container').each(function (i) {
-        const container = $(this);
+    mesText.find('.phone-img-wrapper').each(function (i) {
+        const wrapper = $(this);
+        const container = wrapper.find('.phone-img-container');
         const img = container.find('.phone-img');
         const leftBtn = container.find('.phone-img-nav-left');
         const rightBtn = container.find('.phone-img-nav-right');
         const counter = container.find('.phone-img-counter');
+
+        bindImageEditHandler(wrapper, messageId, i);
 
         leftBtn.off('click').on('click', function () {
             const message = chat[messageId];
@@ -466,6 +712,8 @@ function bindCarouselHandlers(mesText, messageId) {
 
             // Generate a new image variant
             img.addClass('fading');
+            const spinner = $('<div class="phone-img-overlay-spinner"></div>');
+            container.append(spinner);
             rightBtn.prop('disabled', true);
 
             try {
@@ -488,6 +736,7 @@ function bindCarouselHandlers(mesText, messageId) {
                 console.error(`[${MODULE_NAME}] Image generation failed:`, error);
             } finally {
                 img.removeClass('fading');
+                spinner.remove();
                 rightBtn.prop('disabled', false);
             }
         });
@@ -506,5 +755,22 @@ eventSource.on(event_types.MESSAGE_SWIPED, (messageId) => {
 
 // Main listener
 eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, onCharacterMessageRendered);
+
+// Slash command to manually re-process messages
+SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+    name: 'phone-ui',
+    callback: async () => {
+        let count = 0;
+        for (let i = 0; i < chat.length; i++) {
+            const message = chat[i];
+            if (!message || message.is_user || message.is_system) continue;
+            processedMessages.delete(i);
+            await onCharacterMessageRendered(i);
+            count++;
+        }
+        return `Reprocessed ${count} messages`;
+    },
+    helpString: 'Re-process all character messages for [IMG] and [VN] tags. Use when the extension fails to trigger automatically.',
+}));
 
 console.log(`[${MODULE_NAME}] Extension loaded — listening for [IMG] and [VN] tags`);

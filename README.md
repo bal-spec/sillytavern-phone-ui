@@ -16,28 +16,30 @@ A SillyTavern extension that adds interactive phone media to text message / IM c
 - **Image generation** (SD, DALL-E, etc.) configured with the `/imagine` slash command available
 - **TTS extension** configured with a voice map entry for your character (for voice notes)
 
-Note that I have tested with GLM 4.7 Thinking and GLM 5 Thinking via nano-gpt.com for chat and image gen and Azure TTS. This was generated with Claude Code and I include the `PLAN.md` file for the recipe.
+Tested primarily with GLM 4.7 Thinking and GLM 5 Thinking via [NanoGPT](https://nano-gpt.com) for chat and image generation, and Azure TTS for voice notes. The `PLAN.md` file documents the architecture and implementation details.
 
 ## Installation
 
 ### 1. Install the extension
 
-Copy the `phone-ui` folder into your SillyTavern extensions directory:
+#### Option A: Install via SillyTavern UI (recommended)
+
+1. Open SillyTavern and go to **Extensions** > **Install Extension**
+2. Paste the repository URL:
+   ```
+   https://github.com/bal-spec/sillytavern-phone-ui
+   ```
+3. Click **Install** and reload the page
+
+#### Option B: Manual install
+
+Clone or copy the repository into your SillyTavern third-party extensions directory:
 
 ```
-SillyTavern/public/scripts/extensions/third-party/phone-ui/
+git clone https://github.com/bal-spec/sillytavern-phone-ui SillyTavern/public/scripts/extensions/third-party/sillytavern-phone-ui
 ```
 
-The folder should contain:
-```
-phone-ui/
-  index.js
-  style.css
-  manifest.json
-  phone-ui-preset-items.json
-```
-
-Restart SillyTavern after copying.
+Restart SillyTavern after installing.
 
 ### 2. Add preset items
 
@@ -99,8 +101,9 @@ Each generated image shows left/right arrow navigation on hover:
 
 - **Left arrow**: Browse to the previous image variant (hidden on first image)
 - **Right arrow on existing images**: Browse to the next variant
-- **Right arrow on the last image**: Generates a new variant using the same prompt
+- **Right arrow on the last image**: Generates a new variant using the same prompt (a spinner overlay indicates generation is in progress)
 - **Counter pill**: Shows position (e.g. "2/4") on hover
+- **Edit button** (pencil icon, bottom-right): Opens an inline editor to modify the image prompt. Click **Save** to update the prompt without regenerating, or **Save & Generate** to regenerate with the new prompt.
 
 All variants are saved to the chat and persist across reloads.
 
@@ -111,6 +114,10 @@ The voice note player shows a play button with animated waveform bars:
 - Clicking play sends the voice note text to `/speak` using the current character's TTS voice
 - Non-verbal expressions in italics (`*laughs*`, `_sighs_`) are stripped before TTS
 - The waveform animation stays active until audio playback finishes (synced via the `#tts_audio` element)
+
+## Slash Commands
+
+- **`/phone-ui`**: Manually re-process all character messages in the current chat. Use this when the extension fails to trigger automatically (e.g. after a page reload or if messages were rendered before the extension loaded).
 
 ## Troubleshooting
 
@@ -123,5 +130,7 @@ The voice note player shows a play button with animated waveform bars:
 **`[IMG]` or `[VN]` tags visible in messages**: The Strip IMG/VN Tags regex scripts may be missing or disabled. Check your preset's regex scripts section.
 
 **Player appears at bottom of message instead of inside phone bubble**: The LLM didn't generate the `data-phone-img` / `data-phone-vn` placeholder div, so the extension falls back to appending. This usually means the Photos or Voice Notes directive isn't enabled or the LLM isn't following the placeholder format. Try swiping for a new response.
+
+**Extension didn't trigger on a message**: Run `/phone-ui` in the chat input to manually re-process all character messages.
 
 **Double quotes around text in phone bubbles**: Add the no-quotes prohibition to the Visual Toolkit directive (see step 3 of installation).
