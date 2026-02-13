@@ -1,5 +1,7 @@
 import { eventSource, event_types, chat, saveChatConditional, name2 } from '../../../../script.js';
 import { executeSlashCommandsWithOptions } from '../../../slash-commands.js';
+import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
+import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 
 const MODULE_NAME = 'phone-ui';
 const IMG_TAG_REGEX = /\[IMG\]\s*([\s\S]*?)\s*\[\/IMG\]/gi;
@@ -753,5 +755,22 @@ eventSource.on(event_types.MESSAGE_SWIPED, (messageId) => {
 
 // Main listener
 eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, onCharacterMessageRendered);
+
+// Slash command to manually re-process messages
+SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+    name: 'phone-ui',
+    callback: async () => {
+        let count = 0;
+        for (let i = 0; i < chat.length; i++) {
+            const message = chat[i];
+            if (!message || message.is_user || message.is_system) continue;
+            processedMessages.delete(i);
+            await onCharacterMessageRendered(i);
+            count++;
+        }
+        return `Reprocessed ${count} messages`;
+    },
+    helpString: 'Re-process all character messages for [IMG] and [VN] tags. Use when the extension fails to trigger automatically.',
+}));
 
 console.log(`[${MODULE_NAME}] Extension loaded — listening for [IMG] and [VN] tags`);
