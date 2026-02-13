@@ -101,15 +101,21 @@ function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0) {
     const hideLeft = activeIndex === 0 ? ' style="display:none;"' : '';
     const counterText = totalImages > 1 ? `${activeIndex + 1}/${totalImages}` : '';
     const counterHidden = totalImages <= 1 ? ' style="display:none;"' : '';
-    return `<div class="phone-img-container">
-        <img class="phone-img" src="${url}" alt="Generated image" />
-        <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
-        <button class="phone-img-nav phone-img-nav-right" title="Next">\u203A</button>
-        <span class="phone-img-counter"${counterHidden}>${counterText}</span>
-        <details class="phone-img-details">
-            <summary>prompt</summary>
-            <div class="phone-img-prompt">${escapedPrompt}</div>
-        </details>
+    return `<div class="phone-img-wrapper">
+        <div class="phone-img-container">
+            <img class="phone-img" src="${url}" alt="Generated image" />
+            <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
+            <button class="phone-img-nav phone-img-nav-right" title="Next">\u203A</button>
+            <span class="phone-img-counter"${counterHidden}>${counterText}</span>
+            <button class="phone-img-edit-btn" title="Edit prompt">&#9998;</button>
+        </div>
+        <div class="phone-img-editor" style="display:none;">
+            <textarea class="phone-img-editor-textarea">${escapedPrompt}</textarea>
+            <div class="phone-img-editor-actions">
+                <button class="phone-img-save-btn">Save</button>
+                <button class="phone-img-save-gen-btn">Save &amp; Generate</button>
+            </div>
+        </div>
     </div>`;
 }
 
@@ -557,17 +563,104 @@ function bindVnEditHandler(wrapper, messageId, vnIndex) {
 }
 
 /**
+ * Bind edit button and save handlers on an image wrapper.
+ * @param {JQuery} wrapper - The .phone-img-wrapper element
+ * @param {number} messageId
+ * @param {number} imgIndex
+ */
+function bindImageEditHandler(wrapper, messageId, imgIndex) {
+    const editBtn = wrapper.find('.phone-img-edit-btn');
+    const editor = wrapper.find('.phone-img-editor');
+    const textarea = wrapper.find('.phone-img-editor-textarea');
+    const saveBtn = wrapper.find('.phone-img-save-btn');
+    const saveGenBtn = wrapper.find('.phone-img-save-gen-btn');
+
+    editBtn.off('click').on('click', function () {
+        if (editor.is(':visible')) {
+            editor.hide();
+        } else {
+            const message = chat[messageId];
+            const currentPrompt = message?.extra?.phoneMedia?.[imgIndex]?.prompt || '';
+            textarea.val(currentPrompt);
+            editor.show();
+        }
+    });
+
+    saveBtn.off('click').on('click', async function () {
+        const newPrompt = textarea.val().trim();
+        if (!newPrompt) return;
+
+        const message = chat[messageId];
+        if (!message?.extra?.phoneMedia?.[imgIndex]) return;
+
+        message.extra.phoneMedia[imgIndex].prompt = newPrompt;
+        editor.hide();
+        await saveChatConditional();
+        console.log(`[${MODULE_NAME}] Updated prompt for image #${imgIndex} in message ${messageId}`);
+    });
+
+    saveGenBtn.off('click').on('click', async function () {
+        const newPrompt = textarea.val().trim();
+        if (!newPrompt) return;
+
+        const message = chat[messageId];
+        const media = message?.extra?.phoneMedia?.[imgIndex];
+        if (!media) return;
+
+        media.prompt = newPrompt;
+        editor.hide();
+
+        const container = wrapper.find('.phone-img-container');
+        const img = container.find('.phone-img');
+        const leftBtn = container.find('.phone-img-nav-left');
+        const rightBtn = container.find('.phone-img-nav-right');
+        const counter = container.find('.phone-img-counter');
+
+        img.addClass('fading');
+        editBtn.prop('disabled', true);
+        rightBtn.prop('disabled', true);
+
+        try {
+            const result = await executeSlashCommandsWithOptions(
+                `/imagine quiet=true ${newPrompt}`,
+                { handleParserErrors: true, handleExecutionErrors: true },
+            );
+
+            const newUrl = result?.pipe;
+            if (newUrl) {
+                media.urls.push(newUrl);
+                media.activeIndex = media.urls.length - 1;
+                img.attr('src', newUrl);
+                counter.text(`${media.activeIndex + 1}/${media.urls.length}`).show();
+                leftBtn.show();
+                await saveChatConditional();
+                console.log(`[${MODULE_NAME}] Generated new image with updated prompt for #${imgIndex} in message ${messageId}`);
+            }
+        } catch (error) {
+            console.error(`[${MODULE_NAME}] Image generation failed:`, error);
+        } finally {
+            img.removeClass('fading');
+            editBtn.prop('disabled', false);
+            rightBtn.prop('disabled', false);
+        }
+    });
+}
+
+/**
  * Bind carousel navigation handlers on all image containers within a message.
  * @param {JQuery} mesText
  * @param {number} messageId
  */
 function bindCarouselHandlers(mesText, messageId) {
-    mesText.find('.phone-img-container').each(function (i) {
-        const container = $(this);
+    mesText.find('.phone-img-wrapper').each(function (i) {
+        const wrapper = $(this);
+        const container = wrapper.find('.phone-img-container');
         const img = container.find('.phone-img');
         const leftBtn = container.find('.phone-img-nav-left');
         const rightBtn = container.find('.phone-img-nav-right');
         const counter = container.find('.phone-img-counter');
+
+        bindImageEditHandler(wrapper, messageId, i);
 
         leftBtn.off('click').on('click', function () {
             const message = chat[messageId];

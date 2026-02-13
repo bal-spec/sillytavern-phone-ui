@@ -80,33 +80,102 @@
     opacity: 1;
 }
 
-/* Prompt disclosure */
-.phone-img-details {
-    margin-top: 4px;
-    font-size: 0.8em;
-    color: #888;
+/* Image wrapper (container + editor) */
+.phone-img-wrapper {
+    max-width: 280px;
+    margin: 4px 0;
 }
 
-.phone-img-details summary {
+/* Image edit button */
+.phone-img-edit-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
     cursor: pointer;
-    color: #666;
-    font-size: 0.85em;
-    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 2;
 }
 
-.phone-img-details summary:hover {
-    color: #aaa;
+.phone-img-container:hover .phone-img-edit-btn {
+    opacity: 1;
 }
 
-.phone-img-prompt {
+.phone-img-edit-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Image prompt editor */
+.phone-img-editor {
     margin-top: 4px;
-    padding: 6px 8px;
-    background: rgba(0, 0, 0, 0.2);
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.phone-img-editor-textarea {
+    width: 100%;
+    min-height: 60px;
+    background: #111122;
+    border: 1px solid #444;
     border-radius: 4px;
+    color: #ccc;
+    font-family: 'Courier New', Courier, monospace;
     font-size: 0.85em;
-    color: #999;
     line-height: 1.4;
-    word-break: break-word;
+    padding: 6px 8px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.phone-img-editor-textarea:focus {
+    outline: none;
+    border-color: #25d366;
+}
+
+.phone-img-editor-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.phone-img-editor-actions button {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #333;
+    color: #ccc;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.phone-img-editor-actions button:hover {
+    background: #444;
+    border-color: #666;
+}
+
+.phone-img-save-gen-btn {
+    background: #1a4a2e !important;
+    border-color: #25d366 !important;
+}
+
+.phone-img-save-gen-btn:hover {
+    background: #25d366 !important;
+    color: #fff !important;
 }
 
 /* Loading state */
