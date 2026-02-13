@@ -617,6 +617,8 @@ function bindImageEditHandler(wrapper, messageId, imgIndex) {
         const counter = container.find('.phone-img-counter');
 
         img.addClass('fading');
+        const spinner = $('<div class="phone-img-overlay-spinner"></div>');
+        container.append(spinner);
         editBtn.prop('disabled', true);
         rightBtn.prop('disabled', true);
 
@@ -640,6 +642,7 @@ function bindImageEditHandler(wrapper, messageId, imgIndex) {
             console.error(`[${MODULE_NAME}] Image generation failed:`, error);
         } finally {
             img.removeClass('fading');
+            spinner.remove();
             editBtn.prop('disabled', false);
             rightBtn.prop('disabled', false);
         }
@@ -707,6 +710,8 @@ function bindCarouselHandlers(mesText, messageId) {
 
             // Generate a new image variant
             img.addClass('fading');
+            const spinner = $('<div class="phone-img-overlay-spinner"></div>');
+            container.append(spinner);
             rightBtn.prop('disabled', true);
 
             try {
@@ -729,6 +734,7 @@ function bindCarouselHandlers(mesText, messageId) {
                 console.error(`[${MODULE_NAME}] Image generation failed:`, error);
             } finally {
                 img.removeClass('fading');
+                spinner.remove();
                 rightBtn.prop('disabled', false);
             }
         });
