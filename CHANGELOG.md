@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+
+### Security
+
+- **Sanitize slash command arguments**: Image prompts and voice note text passed to `/imagine` and `/speak` are now sanitized to prevent pipe `|` characters from being interpreted as command chaining by SillyTavern's slash command parser.
+- **Escape voice name in `/speak`**: Strip double quotes from the character name to prevent quote breakout in the voice parameter.
+- **Escape image URL in HTML**: Image `src` attributes are now HTML-escaped to prevent attribute injection from crafted URLs in stored chat data.
+
 ## 1.2.0
 
 ### Bug Fixes

@@ -45,6 +45,25 @@ function formatDuration(seconds) {
 }
 
 /**
+ * Sanitize text for use in slash command arguments.
+ * Strips pipe characters that could chain commands.
+ * @param {string} text
+ * @returns {string}
+ */
+function sanitizeForSlashCommand(text) {
+    return text.replace(/\|/g, ',');
+}
+
+/**
+ * Escape a string for safe use in an HTML attribute.
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtmlAttr(str) {
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
  * Find the Nth placeholder element in the rendered message by data attribute,
  * falling back to content-based matching.
  * @param {JQuery} mesText - The .mes_text element
@@ -142,7 +161,7 @@ function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0) {
     const counterHidden = totalImages <= 1 ? ' style="display:none;"' : '';
     return `<div class="phone-img-wrapper">
         <div class="phone-img-container">
-            <img class="phone-img" src="${url}" alt="Generated image" />
+            <img class="phone-img" src="${escapeHtmlAttr(url)}" alt="Generated image" />
             <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
             <button class="phone-img-nav phone-img-nav-right" title="Next">\u203A</button>
             <span class="phone-img-counter"${counterHidden}>${counterText}</span>
@@ -452,7 +471,7 @@ async function onCharacterMessageRendered(messageId) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                `/imagine quiet=true ${prompt}`,
+                `/imagine quiet=true ${sanitizeForSlashCommand(prompt)}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -595,7 +614,7 @@ function bindVoiceNotePlayer(player, messageId, vnIndex) {
             }
             const { started, ended } = waitForTtsPlayback();
             await executeSlashCommandsWithOptions(
-                `/speak voice="${voice}" ${ttsText}`,
+                `/speak voice="${voice.replace(/"/g, '')}" ${sanitizeForSlashCommand(ttsText)}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
             await started;
@@ -753,7 +772,7 @@ function bindImageEditHandler(wrapper, messageId, imgIndex) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                `/imagine quiet=true ${newPrompt}`,
+                `/imagine quiet=true ${sanitizeForSlashCommand(newPrompt)}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -845,7 +864,7 @@ function bindCarouselHandlers(mesText, messageId) {
 
             try {
                 const result = await executeSlashCommandsWithOptions(
-                    `/imagine quiet=true ${media.prompt}`,
+                    `/imagine quiet=true ${sanitizeForSlashCommand(media.prompt)}`,
                     { handleParserErrors: true, handleExecutionErrors: true },
                 );
 
