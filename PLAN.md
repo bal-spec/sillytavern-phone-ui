@@ -130,13 +130,37 @@ Manually re-triggers processing for all character messages in the current chat. 
 
 ### Placeholder Discovery (`findPlaceholder`)
 
-Two-tier lookup:
-1. **Data attribute**: `mesText.find('[data-phone-img="0"]')` — reliable when the LLM follows the directive
-2. **Content fallback**: Find Nth `<div>` containing the expected emoji (`📸` for images, `▶` for voice notes) that doesn't already contain phone-ui widgets
+Multi-tier lookup for VN placeholders (broadened in v1.2.0 to handle LLM response variation):
+1. **Exact data attribute**: `[data-phone-vn="0"]` — when LLM follows directive exactly
+2. **Any data attribute**: `[data-phone-vn]` with any value — LLM may use wrong index
+3. **DOMPurify-prefixed class**: `[class*="custom-phone-vn"]` — LLM mimicking extension HTML gets prefixed by DOMPurify
+4. **Content fallback (innermost)**: Find innermost `<div>` containing `▶` — prefers deepest match to avoid selecting parent containers
+5. **Voice note text**: Elements containing "Voice note" text as additional signal
+
+Image placeholders use the original two-tier lookup:
+1. **Data attribute**: `[data-phone-img="0"]`
+2. **Content fallback**: Nth `<div>` containing `📸`
+
+### VN Position Markers (`stripTagsFromDOM`)
+
+Before deleting each `[VN]...[/VN]` range, `stripTagsFromDOM` inserts an invisible `<span class="phone-vn-marker">` at the `[VN]` position and returns the array of markers. This provides a fallback insertion point when no LLM placeholder is found — the player replaces the marker instead of being appended at the bottom.
+
+### Static Placeholder Cleanup (`removeStaticVnPlaceholders`)
+
+After inserting interactive players, any remaining LLM-generated static placeholder elements are removed. Targets: `[data-phone-vn]` outside `.phone-vn-wrapper`, `[class*="custom-phone-vn"]` outside `.phone-vn-wrapper`, and divs with "Voice note" + ▶ text not part of a player.
 
 ### Deduplication (`processedMessages`)
 
 A `Set<messageId>` prevents re-processing on re-renders. Cleared on `CHAT_CHANGED`, individual entries removed on `MESSAGE_SWIPED`.
+
+## Known Issues
+
+### Restore on page reload
+
+`CHARACTER_MESSAGE_RENDERED` does not fire for existing messages when a chat is loaded after a full page reload. This means images and VN players are not restored automatically — the user must run `/phone-ui` manually. This is a SillyTavern event lifecycle issue (the event only fires for newly rendered messages, not messages rendered from history on chat load). Potential fixes to investigate:
+- Listen on `CHAT_CHANGED` and process all messages in the chat
+- Use a MutationObserver on `#chat` to detect when messages are rendered
+- Hook into SillyTavern's chat rendering pipeline at a different point
 
 ## Preset Directive Design
 

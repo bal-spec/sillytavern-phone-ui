@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+### Bug Fixes
+
+- **Fix duplicate VN player rendering**: When the LLM's inline placeholder HTML didn't match what `findPlaceholder` expected, the extension would append a working player at the bottom while the static placeholder remained visible. Now uses a multi-tier fallback (saved ref → broadened search → VN position marker → append) and cleans up orphan placeholders after insertion.
+
+### Known Issues
+
+- **Restore on page reload fails silently**: `CHARACTER_MESSAGE_RENDERED` does not fire for existing messages when a chat is loaded after a page reload. The image and VN player are not restored until `/phone-ui` is run manually. This is a SillyTavern event issue, not a phone-ui bug — the extension correctly handles the restore when the event does fire.
+
 ## 1.1.0
 
 ### New Features
