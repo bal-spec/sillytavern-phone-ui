@@ -54,18 +54,55 @@ function formatDuration(seconds) {
  * @returns {JQuery|null}
  */
 function findPlaceholder(mesText, dataAttr, index, fallbackContent) {
-    // Try data attribute first
+    const isVn = dataAttr === 'data-phone-vn';
+
+    // Try exact data attribute match first
     const byAttr = mesText.find(`[${dataAttr}="${index}"]`);
     if (byAttr.length) return byAttr.first();
 
-    // Fallback: find by content (Nth occurrence of the emoji)
+    if (isVn) {
+        // Try any [data-phone-vn] attribute (LLM may use wrong index value)
+        const anyVnAttr = mesText.find('[data-phone-vn]').not('.phone-vn-wrapper [data-phone-vn]');
+        if (anyVnAttr.length) return anyVnAttr.eq(Math.min(index, anyVnAttr.length - 1));
+
+        // Try DOMPurify-prefixed class (LLM mimicking extension HTML)
+        const byCustomClass = mesText.find('[class*="custom-phone-vn"]').not('.phone-vn-wrapper [class*="custom-phone-vn"]');
+        if (byCustomClass.length) return byCustomClass.eq(Math.min(index, byCustomClass.length - 1));
+    }
+
+    // Fallback: find by content — prefer innermost matching element for VN
     const candidates = [];
     mesText.find('div').each(function () {
         const el = $(this);
-        if (el.text().includes(fallbackContent) && !el.find('[class^="phone-"]').length) {
+        if (el.closest('.phone-vn-wrapper, .phone-img-wrapper').length) return;
+        const text = el.text();
+        if (text.includes(fallbackContent) && !el.find('[class^="phone-"]').length) {
+            if (isVn) {
+                // Prefer innermost: skip if a child div also matches
+                const childMatch = el.find('div').filter(function () {
+                    return $(this).text().includes(fallbackContent);
+                });
+                if (childMatch.length) return;
+            }
             candidates.push(el);
         }
     });
+
+    if (isVn && !candidates.length) {
+        // Also match elements containing "Voice note" text
+        mesText.find('div').each(function () {
+            const el = $(this);
+            if (el.closest('.phone-vn-wrapper, .phone-img-wrapper').length) return;
+            if (/voice\s*note/i.test(el.text()) && !el.find('[class^="phone-"]').length) {
+                const childMatch = el.find('div').filter(function () {
+                    return /voice\s*note/i.test($(this).text());
+                });
+                if (childMatch.length) return;
+                candidates.push(el);
+            }
+        });
+    }
+
     if (candidates[index]) return $(candidates[index]);
 
     return null;
@@ -161,11 +198,14 @@ function buildVoiceNotePlayer(vnText) {
  * Strip [IMG]...[/IMG] and [VN]...[/VN] spans from the DOM using Range API.
  * Works across element boundaries (tags split by <br>, <em>, etc.).
  * Preserves all event bindings on unrelated elements.
+ * For VN tags, inserts invisible marker spans at each [VN] position before deletion.
  * @param {JQuery} mesText
+ * @returns {HTMLElement[]} Array of VN marker elements inserted at each [VN] position
  */
 function stripTagsFromDOM(mesText) {
     const root = mesText[0];
     const tagNames = ['IMG', 'VN'];
+    const vnMarkers = [];
 
     for (const tag of tagNames) {
         const openPattern = `[${tag}]`;
@@ -199,16 +239,61 @@ function stripTagsFromDOM(mesText) {
 
             if (!openNode || !closeNode) break;
 
+            // For VN tags, insert invisible marker before deleting
+            if (tag === 'VN') {
+                const marker = document.createElement('span');
+                marker.className = 'phone-vn-marker';
+                marker.style.display = 'none';
+                openNode.parentNode.insertBefore(marker, openNode.splitText(openOffset));
+                // Recalculate: splitting moved content to a new text node
+                const newTextNode = marker.nextSibling;
+                openNode = newTextNode;
+                openOffset = 0;
+                vnMarkers.push(marker);
+            }
+
             const range = document.createRange();
             range.setStart(openNode, openOffset);
             range.setEnd(closeNode, closeOffset);
             range.deleteContents();
 
             // Clean up empty text nodes left behind
-            if (openNode.nodeValue === '') openNode.remove();
+            if (openNode.parentNode && openNode.nodeValue === '') openNode.remove();
             if (closeNode !== openNode && closeNode.parentNode && closeNode.nodeValue === '') closeNode.remove();
         }
     }
+
+    return vnMarkers;
+}
+
+/**
+ * Remove static LLM-generated VN placeholder elements that weren't replaced
+ * by the interactive player. Cleans up orphan placeholders to prevent duplicates.
+ * @param {JQuery} mesText
+ */
+function removeStaticVnPlaceholders(mesText) {
+    // Remove elements with data-phone-vn attribute not inside a .phone-vn-wrapper
+    mesText.find('[data-phone-vn]').each(function () {
+        if (!$(this).closest('.phone-vn-wrapper').length) $(this).remove();
+    });
+
+    // Remove DOMPurify-prefixed VN classes not inside a .phone-vn-wrapper
+    mesText.find('[class*="custom-phone-vn"]').each(function () {
+        if (!$(this).closest('.phone-vn-wrapper').length) $(this).remove();
+    });
+
+    // Remove divs with "Voice note" + ▶ text that aren't part of .phone-vn-wrapper
+    mesText.find('div').each(function () {
+        const el = $(this);
+        if (el.closest('.phone-vn-wrapper').length) return;
+        const text = el.text();
+        if (/voice\s*note/i.test(text) && text.includes('\u25B6') && !el.find('.phone-vn-wrapper').length) {
+            el.remove();
+        }
+    });
+
+    // Clean up VN markers
+    mesText.find('.phone-vn-marker').remove();
 }
 
 /**
@@ -260,7 +345,7 @@ async function onCharacterMessageRendered(messageId) {
     // Restore mode — nothing needs first-gen processing
     if (!imgNeedsGen && !vnNeedsGen && phoneMedia && Object.keys(phoneMedia).length > 0) {
         processedMessages.add(messageId);
-        stripTagsFromDOM(mesText);
+        const vnMarkers = stripTagsFromDOM(mesText);
         for (const [idxStr, media] of Object.entries(phoneMedia)) {
             if (media.type === 'image') {
                 const idx = parseInt(idxStr, 10);
@@ -268,9 +353,10 @@ async function onCharacterMessageRendered(messageId) {
             }
             if (media.type === 'voice_note') {
                 const idx = parseInt(idxStr.replace('vn', ''), 10);
-                restoreVoiceNote(mesText, media, idx, messageId);
+                restoreVoiceNote(mesText, media, idx, messageId, vnMarkers);
             }
         }
+        removeStaticVnPlaceholders(mesText);
         bindCarouselHandlers(mesText, messageId);
         return;
     }
@@ -289,9 +375,11 @@ async function onCharacterMessageRendered(messageId) {
     // Strip [IMG] tags from message text (VN tags kept for edit flow)
     message.mes = message.mes.replace(STRIP_IMG_TAGS_REGEX, '').trim();
 
-    // Strip from rendered DOM BEFORE processing placeholders,
-    // so Range deletion doesn't remove players we're about to insert
-    stripTagsFromDOM(mesText);
+    // Collect VN placeholder references BEFORE stripTagsFromDOM (which may delete them)
+    const vnPlaceholderRefs = vnMatches.map((_, i) => findPlaceholder(mesText, 'data-phone-vn', i, '\u25B6'));
+
+    // Strip from rendered DOM — returns VN position markers
+    const vnMarkers = stripTagsFromDOM(mesText);
 
     // Process voice notes (non-blocking — user clicks to play)
     for (let i = 0; i < vnMatches.length; i++) {
@@ -300,12 +388,33 @@ async function onCharacterMessageRendered(messageId) {
 
         console.log(`[${MODULE_NAME}] Found [VN] tag #${i} in message ${messageId}`);
 
-        const placeholder = findPlaceholder(mesText, 'data-phone-vn', i, '\u25B6');
         const playerHtml = buildVoiceNotePlayer(vnText);
+        let inserted = false;
 
-        if (placeholder) {
-            placeholder.replaceWith(playerHtml);
-        } else {
+        // Try saved placeholder reference (if still in DOM)
+        const savedRef = vnPlaceholderRefs[i];
+        if (savedRef && savedRef[0]?.isConnected) {
+            savedRef.replaceWith(playerHtml);
+            inserted = true;
+        }
+
+        // Try improved findPlaceholder
+        if (!inserted) {
+            const placeholder = findPlaceholder(mesText, 'data-phone-vn', i, '\u25B6');
+            if (placeholder) {
+                placeholder.replaceWith(playerHtml);
+                inserted = true;
+            }
+        }
+
+        // Try VN marker from stripTagsFromDOM
+        if (!inserted && vnMarkers[i]?.isConnected) {
+            $(vnMarkers[i]).replaceWith(playerHtml);
+            inserted = true;
+        }
+
+        // Fallback: append to end
+        if (!inserted) {
             mesText.append(playerHtml);
         }
 
@@ -317,6 +426,9 @@ async function onCharacterMessageRendered(messageId) {
 
         message.extra.phoneMedia[`vn${i}`] = { type: 'voice_note', text: vnText };
     }
+
+    // Clean up any remaining LLM-generated static VN placeholders
+    removeStaticVnPlaceholders(mesText);
 
     // Process images sequentially
     for (let i = 0; i < imgMatches.length; i++) {
@@ -376,15 +488,30 @@ async function onCharacterMessageRendered(messageId) {
  * @param {object} media
  * @param {number} index
  * @param {number} messageId
+ * @param {HTMLElement[]} [vnMarkers] - Position markers from stripTagsFromDOM
  */
-function restoreVoiceNote(mesText, media, index, messageId) {
-    const placeholder = findPlaceholder(mesText, 'data-phone-vn', index, '\u25B6');
+function restoreVoiceNote(mesText, media, index, messageId, vnMarkers) {
     const playerHtml = buildVoiceNotePlayer(media.text);
+    let inserted = false;
+
+    // Try findPlaceholder (improved with broader VN matching)
+    const placeholder = findPlaceholder(mesText, 'data-phone-vn', index, '\u25B6');
     if (placeholder) {
         placeholder.replaceWith(playerHtml);
-    } else {
+        inserted = true;
+    }
+
+    // Try VN marker from stripTagsFromDOM
+    if (!inserted && vnMarkers?.[index]?.isConnected) {
+        $(vnMarkers[index]).replaceWith(playerHtml);
+        inserted = true;
+    }
+
+    // Fallback: append to end
+    if (!inserted) {
         mesText.append(playerHtml);
     }
+
     const wrapper = mesText.find('.phone-vn-wrapper').last();
     if (wrapper.length) {
         const player = wrapper.find('.phone-vn-container');
