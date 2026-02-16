@@ -10,17 +10,17 @@ const STRIP_IMG_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]/gi; // used for message.m
 
 const BAR_HEIGHTS = [8, 14, 6, 18, 10, 16, 7, 12, 5, 15, 9, 13];
 
-/** Lightbox singleton for full-size image viewing */
+/** Lightbox singleton for full-size image viewing (uses <dialog> for top-layer rendering) */
 let lightboxEl = null;
 
 /**
- * Get or create the lightbox overlay element.
- * @returns {HTMLElement}
+ * Get or create the lightbox dialog element.
+ * @returns {HTMLDialogElement}
  */
 function getLightbox() {
     if (lightboxEl) return lightboxEl;
 
-    lightboxEl = document.createElement('div');
+    lightboxEl = document.createElement('dialog');
     lightboxEl.className = 'phone-lightbox';
 
     const img = document.createElement('img');
@@ -29,17 +29,10 @@ function getLightbox() {
 
     document.body.appendChild(lightboxEl);
 
-    // Close on overlay click (but not on image click)
+    // Close on backdrop click
     lightboxEl.addEventListener('click', (e) => {
         if (e.target === lightboxEl) {
-            lightboxEl.classList.remove('open');
-        }
-    });
-
-    // Close on Escape
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && lightboxEl.classList.contains('open')) {
-            lightboxEl.classList.remove('open');
+            lightboxEl.close();
         }
     });
 
@@ -53,7 +46,7 @@ function getLightbox() {
 function openLightbox(url) {
     const lb = getLightbox();
     lb.querySelector('.phone-lightbox-img').src = url;
-    lb.classList.add('open');
+    lb.showModal();
 }
 
 /** Track messages we've already processed */
