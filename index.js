@@ -10,6 +10,52 @@ const STRIP_IMG_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]/gi; // used for message.m
 
 const BAR_HEIGHTS = [8, 14, 6, 18, 10, 16, 7, 12, 5, 15, 9, 13];
 
+/** Lightbox singleton for full-size image viewing */
+let lightboxEl = null;
+
+/**
+ * Get or create the lightbox overlay element.
+ * @returns {HTMLElement}
+ */
+function getLightbox() {
+    if (lightboxEl) return lightboxEl;
+
+    lightboxEl = document.createElement('div');
+    lightboxEl.className = 'phone-lightbox';
+
+    const img = document.createElement('img');
+    img.className = 'phone-lightbox-img';
+    lightboxEl.appendChild(img);
+
+    document.body.appendChild(lightboxEl);
+
+    // Close on overlay click (but not on image click)
+    lightboxEl.addEventListener('click', (e) => {
+        if (e.target === lightboxEl) {
+            lightboxEl.classList.remove('open');
+        }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && lightboxEl.classList.contains('open')) {
+            lightboxEl.classList.remove('open');
+        }
+    });
+
+    return lightboxEl;
+}
+
+/**
+ * Open the lightbox with the given image URL.
+ * @param {string} url
+ */
+function openLightbox(url) {
+    const lb = getLightbox();
+    lb.querySelector('.phone-lightbox-img').src = url;
+    lb.classList.add('open');
+}
+
 /** Track messages we've already processed */
 const processedMessages = new Set();
 
@@ -812,6 +858,11 @@ function bindCarouselHandlers(mesText, messageId) {
         const counter = container.find('.phone-img-counter');
 
         bindImageEditHandler(wrapper, messageId, i);
+
+        // Click image to open lightbox
+        img.off('click.lightbox').on('click.lightbox', function () {
+            openLightbox($(this).attr('src'));
+        });
 
         leftBtn.off('click').on('click', function () {
             const message = chat[messageId];
