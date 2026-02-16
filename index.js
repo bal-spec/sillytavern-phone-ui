@@ -510,7 +510,7 @@ async function onCharacterMessageRendered(messageId) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                `/imagine quiet=true ${sanitizeForSlashCommand(prompt)}`,
+                `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(prompt)}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -811,7 +811,7 @@ function bindImageEditHandler(wrapper, messageId, imgIndex) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                `/imagine quiet=true ${sanitizeForSlashCommand(newPrompt)}`,
+                `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(newPrompt)}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -908,7 +908,7 @@ function bindCarouselHandlers(mesText, messageId) {
 
             try {
                 const result = await executeSlashCommandsWithOptions(
-                    `/imagine quiet=true ${sanitizeForSlashCommand(media.prompt)}`,
+                    `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(media.prompt)}`,
                     { handleParserErrors: true, handleExecutionErrors: true },
                 );
 
