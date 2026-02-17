@@ -263,10 +263,7 @@ function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0, save
  * @returns {string}
  */
 function buildLoadingPlaceholder() {
-    return `<div class="phone-img-wrapper"><div class="phone-img-loading">
-        <div class="phone-img-spinner"></div>
-        <div>Generating image...</div>
-    </div></div>`;
+    return `<div class="phone-img-wrapper"></div>`;
 }
 
 /**
@@ -539,16 +536,14 @@ async function onCharacterMessageRendered(messageId) {
 
         const placeholder = findPlaceholder(mesText, 'data-phone-img', i, '\uD83D\uDCF8');
 
-        // Show loading state (wrapped in .phone-img-wrapper for stable layout)
+        // Insert an empty wrapper to reserve the image's layout slot
         const loadingHtml = buildLoadingPlaceholder();
-        let loadingWrapper;
         if (placeholder) {
             placeholder.replaceWith(loadingHtml);
-            loadingWrapper = mesText.find('.phone-img-loading').last().closest('.phone-img-wrapper');
         } else {
             mesText.append(loadingHtml);
-            loadingWrapper = mesText.find('.phone-img-loading').last().closest('.phone-img-wrapper');
         }
+        const loadingWrapper = mesText.find('.phone-img-wrapper').not(':has(.phone-img)').last();
 
         try {
             const result = await executeSlashCommandsWithOptions(
