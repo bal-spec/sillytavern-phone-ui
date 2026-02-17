@@ -890,8 +890,41 @@ function bindCarouselHandlers(mesText, messageId) {
         const leftBtn = container.find('.phone-img-nav-left');
         const rightBtn = container.find('.phone-img-nav-right');
         const counter = container.find('.phone-img-counter');
+        const galleryBtn = container.find('.phone-img-gallery-btn');
 
         bindImageEditHandler(wrapper, messageId, i);
+
+        // Gallery save button
+        galleryBtn.off('click').on('click', async function () {
+            if (galleryBtn.hasClass('saved') || galleryBtn.hasClass('saving')) return;
+
+            const message = chat[messageId];
+            const media = message?.extra?.phoneMedia?.[i];
+            if (!media) return;
+
+            const currentUrl = img.attr('src');
+            galleryBtn.addClass('saving').empty();
+
+            try {
+                await saveImageToGallery(currentUrl);
+
+                if (!media.savedToGallery) media.savedToGallery = [];
+                media.savedToGallery.push(media.activeIndex);
+
+                // Flash checkmark bright, then settle into dimmed saved state
+                galleryBtn.removeClass('saving').html('&#10003;').css('color', '#25d366');
+                setTimeout(() => {
+                    galleryBtn.addClass('saved').attr('title', 'Saved to gallery');
+                }, 1500);
+
+                await saveChatConditional();
+                console.log(`[${MODULE_NAME}] Saved image #${i} variant ${media.activeIndex} to gallery for message ${messageId}`);
+            } catch (error) {
+                console.error(`[${MODULE_NAME}] Gallery save failed:`, error);
+                galleryBtn.removeClass('saving').addClass('error').html('&#8615;');
+                setTimeout(() => galleryBtn.removeClass('error'), 1500);
+            }
+        });
 
         // Click image to open lightbox
         img.off('click.lightbox').on('click.lightbox', function () {
@@ -916,6 +949,13 @@ function bindCarouselHandlers(mesText, messageId) {
             img.attr('src', media.urls[media.activeIndex]);
             counter.text(`${media.activeIndex + 1}/${media.urls.length}`);
             leftBtn.toggle(media.activeIndex > 0);
+
+            // Sync gallery save button state
+            const isSaved = (media.savedToGallery || []).includes(media.activeIndex);
+            galleryBtn.toggleClass('saved', isSaved)
+                .html(isSaved ? '&#10003;' : '&#8615;')
+                .attr('title', isSaved ? 'Saved to gallery' : 'Save to gallery')
+                .css('color', '');
         });
 
         rightBtn.off('click').on('click', async function () {
@@ -938,6 +978,13 @@ function bindCarouselHandlers(mesText, messageId) {
                 img.attr('src', media.urls[media.activeIndex]);
                 counter.text(`${media.activeIndex + 1}/${media.urls.length}`).show();
                 leftBtn.show();
+
+                // Sync gallery save button state
+                const isSaved = (media.savedToGallery || []).includes(media.activeIndex);
+                galleryBtn.toggleClass('saved', isSaved)
+                    .html(isSaved ? '&#10003;' : '&#8615;')
+                    .attr('title', isSaved ? 'Saved to gallery' : 'Save to gallery')
+                    .css('color', '');
                 return;
             }
 
@@ -960,6 +1007,10 @@ function bindCarouselHandlers(mesText, messageId) {
                     img.attr('src', newUrl);
                     counter.text(`${media.activeIndex + 1}/${media.urls.length}`).show();
                     leftBtn.show();
+
+                    // New variant starts unsaved
+                    galleryBtn.removeClass('saved').html('&#8615;').attr('title', 'Save to gallery').css('color', '');
+
                     await saveChatConditional();
                     console.log(`[${MODULE_NAME}] Generated variant #${media.activeIndex} for image #${i} in message ${messageId}`);
                 }
