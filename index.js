@@ -213,7 +213,8 @@ function restoreImage(mesText, media, index) {
     const urls = media.urls || [media.url];
     const activeIndex = media.activeIndex || 0;
     const currentUrl = urls[activeIndex] || urls[0];
-    const container = buildImageContainer(currentUrl, media.prompt, urls.length, activeIndex);
+    const savedIndices = media.savedToGallery || [];
+    const container = buildImageContainer(currentUrl, media.prompt, urls.length, activeIndex, savedIndices);
     if (placeholder) {
         placeholder.replaceWith(container);
     } else {
@@ -229,17 +230,21 @@ function restoreImage(mesText, media, index) {
  * @param {number} activeIndex
  * @returns {string}
  */
-function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0) {
+function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0, savedIndices = []) {
     const escapedPrompt = $('<span>').text(prompt).html();
     const hideLeft = activeIndex === 0 ? ' style="display:none;"' : '';
     const counterText = totalImages > 1 ? `${activeIndex + 1}/${totalImages}` : '';
     const counterHidden = totalImages <= 1 ? ' style="display:none;"' : '';
+    const isSaved = savedIndices.includes(activeIndex);
+    const saveIcon = isSaved ? '&#10003;' : '&#8615;';
+    const savedClass = isSaved ? ' saved' : '';
     return `<div class="phone-img-wrapper">
         <div class="phone-img-container">
             <img class="phone-img" src="${escapeHtmlAttr(url)}" alt="Generated image" />
             <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
             <button class="phone-img-nav phone-img-nav-right" title="Next">\u203A</button>
             <span class="phone-img-counter"${counterHidden}>${counterText}</span>
+            <button class="phone-img-gallery-btn${savedClass}" title="${isSaved ? 'Saved to gallery' : 'Save to gallery'}">${saveIcon}</button>
             <button class="phone-img-edit-btn" title="Edit prompt">&#9998;</button>
         </div>
         <div class="phone-img-editor" style="display:none;">
