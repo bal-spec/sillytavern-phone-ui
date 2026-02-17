@@ -263,10 +263,10 @@ function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0, save
  * @returns {string}
  */
 function buildLoadingPlaceholder() {
-    return `<div class="phone-img-loading">
+    return `<div class="phone-img-wrapper"><div class="phone-img-loading">
         <div class="phone-img-spinner"></div>
         <div>Generating image...</div>
-    </div>`;
+    </div></div>`;
 }
 
 /**
@@ -539,15 +539,15 @@ async function onCharacterMessageRendered(messageId) {
 
         const placeholder = findPlaceholder(mesText, 'data-phone-img', i, '\uD83D\uDCF8');
 
-        // Show loading state
+        // Show loading state (wrapped in .phone-img-wrapper for stable layout)
         const loadingHtml = buildLoadingPlaceholder();
-        let loadingEl;
+        let loadingWrapper;
         if (placeholder) {
             placeholder.replaceWith(loadingHtml);
-            loadingEl = mesText.find('.phone-img-loading').last();
+            loadingWrapper = mesText.find('.phone-img-loading').last().closest('.phone-img-wrapper');
         } else {
             mesText.append(loadingHtml);
-            loadingEl = mesText.find('.phone-img-loading').last();
+            loadingWrapper = mesText.find('.phone-img-loading').last().closest('.phone-img-wrapper');
         }
 
         try {
@@ -559,19 +559,19 @@ async function onCharacterMessageRendered(messageId) {
             const imageUrl = result?.pipe;
             if (!imageUrl) {
                 console.warn(`[${MODULE_NAME}] /imagine returned no image URL for tag #${i}`);
-                loadingEl.replaceWith('<div class="phone-img-loading">Image generation failed</div>');
+                loadingWrapper.replaceWith('<div class="phone-img-wrapper"><div class="phone-img-loading">Image generation failed</div></div>');
                 continue;
             }
 
             console.log(`[${MODULE_NAME}] Image #${i} generated: ${imageUrl}`);
 
             const containerHtml = buildImageContainer(imageUrl, prompt, 1, 0);
-            loadingEl.replaceWith(containerHtml);
+            loadingWrapper.replaceWith(containerHtml);
 
             message.extra.phoneMedia[i] = { urls: [imageUrl], type: 'image', prompt, activeIndex: 0 };
         } catch (error) {
             console.error(`[${MODULE_NAME}] Failed to generate image #${i}:`, error);
-            loadingEl.replaceWith('<div class="phone-img-loading">Image generation failed</div>');
+            loadingWrapper.replaceWith('<div class="phone-img-wrapper"><div class="phone-img-loading">Image generation failed</div></div>');
         }
     }
 

@@ -263,7 +263,13 @@
     text-align: center;
     color: #888;
     font-size: 0.85em;
-    max-width: 280px;
+    width: 280px;
+    height: 280px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
 }
 
 .phone-img-spinner {
