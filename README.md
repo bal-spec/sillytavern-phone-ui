@@ -91,7 +91,7 @@ When a character message is rendered:
 1. The extension scans `message.mes` for `[IMG]` and `[VN]` tags
 2. It strips those tags from the rendered DOM (using the Range API to handle cross-node spans)
 3. For each `[VN]` tag, it finds the matching `data-phone-vn` placeholder in the phone UI HTML and replaces it with an interactive waveform player
-4. For each `[IMG]` tag, it finds the matching `data-phone-img` placeholder, shows a loading spinner, calls `/imagine` with the prompt, and inserts the result with carousel controls
+4. For each `[IMG]` tag, it finds the matching `data-phone-img` placeholder, calls `/imagine` with the prompt, and inserts the result with carousel controls
 5. Media URLs and metadata are saved to `message.extra.phoneMedia` in the chat file
 6. On page reload, saved media is restored into placeholders without re-generating
 
@@ -104,6 +104,9 @@ Each generated image shows left/right arrow navigation on hover:
 - **Right arrow on the last image**: Generates a new variant using the same prompt (a spinner overlay indicates generation is in progress)
 - **Counter pill**: Shows position (e.g. "2/4") on hover
 - **Edit button** (pencil icon, bottom-right): Opens an inline editor to modify the image prompt. Click **Save** to update the prompt without regenerating, or **Save & Generate** to regenerate with the new prompt.
+- **Save to gallery button** (download icon, top-right): Saves the currently displayed image to the character gallery. Shows a checkmark when saved; saved images cannot be saved again. Each carousel variant tracks its save state independently.
+
+Images are generated with `gallery=false` so they don't clutter the character gallery by default. Use the save button to selectively keep images you like.
 
 All variants are saved to the chat and persist across reloads.
 
@@ -117,7 +120,7 @@ The voice note player shows a play button with animated waveform bars:
 
 ## Slash Commands
 
-- **`/phone-ui`**: Manually re-process all character messages in the current chat. Use this when the extension fails to trigger automatically (e.g. after a page reload or if messages were rendered before the extension loaded).
+- **`/phone-ui`**: Manually re-process all character messages in the current chat. Use this if messages were rendered before the extension loaded. Note: images and voice notes are now automatically restored on page reload.
 
 ## Troubleshooting
 
@@ -131,6 +134,6 @@ The voice note player shows a play button with animated waveform bars:
 
 **Player appears at bottom of message instead of inside phone bubble**: The LLM didn't generate the `data-phone-img` / `data-phone-vn` placeholder div, so the extension falls back to appending. This usually means the Photos or Voice Notes directive isn't enabled or the LLM isn't following the placeholder format. Try swiping for a new response.
 
-**Extension didn't trigger on a message**: Run `/phone-ui` in the chat input to manually re-process all character messages.
+**Extension didn't trigger on a message**: Images and voice notes should restore automatically on chat load. If they don't, run `/phone-ui` in the chat input to manually re-process all character messages.
 
 **Double quotes around text in phone bubbles**: Add the no-quotes prohibition to the Visual Toolkit directive (see step 3 of installation).
