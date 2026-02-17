@@ -228,6 +228,7 @@ function restoreImage(mesText, media, index) {
  * @param {string} prompt
  * @param {number} totalImages
  * @param {number} activeIndex
+ * @param {number[]} savedIndices - Indices of variants already saved to gallery
  * @returns {string}
  */
 function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0, savedIndices = []) {
@@ -909,7 +910,10 @@ function bindCarouselHandlers(mesText, messageId) {
                 await saveImageToGallery(currentUrl);
 
                 if (!media.savedToGallery) media.savedToGallery = [];
-                media.savedToGallery.push(media.activeIndex);
+                const idx = media.activeIndex ?? 0;
+                if (!media.savedToGallery.includes(idx)) {
+                    media.savedToGallery.push(idx);
+                }
 
                 // Flash checkmark bright, then settle into dimmed saved state
                 galleryBtn.removeClass('saving').html('&#10003;').css('color', '#25d366');

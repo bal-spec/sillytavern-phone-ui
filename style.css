@@ -177,6 +177,7 @@
 
 /* Saving state — spinner */
 .phone-img-gallery-btn.saving {
+    opacity: 1;
     pointer-events: none;
     border: 3px solid rgba(255, 255, 255, 0.2);
     border-top-color: #fff;
