@@ -1,4 +1,4 @@
-import { eventSource, event_types, chat, saveChatConditional, name2 } from '../../../../script.js';
+import { eventSource, event_types, chat, saveChatConditional, name2, getRequestHeaders } from '../../../../script.js';
 import { executeSlashCommandsWithOptions } from '../../../slash-commands.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
@@ -100,6 +100,42 @@ function sanitizeForSlashCommand(text) {
  */
 function escapeHtmlAttr(str) {
     return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Save an image to the character gallery by fetching it and re-uploading.
+ * @param {string} imageUrl - The server-relative URL of the image (e.g. /user/images/foo.png)
+ * @returns {Promise<void>}
+ */
+async function saveImageToGallery(imageUrl) {
+    const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+
+    const blob = await response.blob();
+    const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+
+    const ext = imageUrl.split('.').pop().split('?')[0] || 'png';
+    const charName = name2 || '';
+
+    const uploadResponse = await fetch('/api/images/upload', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({
+            image: base64,
+            format: ext,
+            ch_name: charName,
+        }),
+    });
+
+    if (!uploadResponse.ok) {
+        const err = await uploadResponse.json().catch(() => ({}));
+        throw new Error(err.error || 'Gallery upload failed');
+    }
 }
 
 /**
