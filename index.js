@@ -1024,9 +1024,23 @@ function bindCarouselHandlers(mesText, messageId) {
     });
 }
 
-// Clear processed set when chat changes
+/**
+ * Reprocess all character messages to restore images and voice notes.
+ */
+async function reprocessAllMessages() {
+    processedMessages.clear();
+    for (let i = 0; i < chat.length; i++) {
+        const message = chat[i];
+        if (!message || message.is_user || message.is_system) continue;
+        await onCharacterMessageRendered(i);
+    }
+}
+
+// Restore images and voice notes when a chat is loaded
 eventSource.on(event_types.CHAT_CHANGED, () => {
     processedMessages.clear();
+    // Delay to ensure DOM is rendered by printMessages()
+    requestAnimationFrame(() => reprocessAllMessages());
 });
 
 // Clear tracking for swiped messages
@@ -1041,15 +1055,8 @@ eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, onCharacterMessageRendere
 SlashCommandParser.addCommandObject(SlashCommand.fromProps({
     name: 'phone-ui',
     callback: async () => {
-        let count = 0;
-        for (let i = 0; i < chat.length; i++) {
-            const message = chat[i];
-            if (!message || message.is_user || message.is_system) continue;
-            processedMessages.delete(i);
-            await onCharacterMessageRendered(i);
-            count++;
-        }
-        return `Reprocessed ${count} messages`;
+        await reprocessAllMessages();
+        return 'Reprocessed all messages';
     },
     helpString: 'Re-process all character messages for [IMG] and [VN] tags. Use when the extension fails to trigger automatically.',
 }));
