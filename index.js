@@ -295,14 +295,17 @@ function buildVoiceNotePlayer(vnText) {
  * Strip [IMG]...[/IMG] and [VN]...[/VN] spans from the DOM using Range API.
  * Works across element boundaries (tags split by <br>, <em>, etc.).
  * Preserves all event bindings on unrelated elements.
- * For VN tags, inserts invisible marker spans at each [VN] position before deletion.
+ * Inserts an invisible marker span at each tag position before deletion, so media
+ * can be placed exactly where the tag sat — the v1.4 marker contract: the model
+ * only writes the tags; placeholder HTML is optional and legacy.
  * @param {JQuery} mesText
- * @returns {HTMLElement[]} Array of VN marker elements inserted at each [VN] position
+ * @returns {{imgMarkers: HTMLElement[], vnMarkers: HTMLElement[]}} Position markers per kind
  */
 function stripTagsFromDOM(mesText) {
     const root = mesText[0];
     const tagNames = ['IMG', 'VN'];
     const vnMarkers = [];
+    const imgMarkers = [];
 
     for (const tag of tagNames) {
         const openPattern = `[${tag}]`;
@@ -336,17 +339,17 @@ function stripTagsFromDOM(mesText) {
 
             if (!openNode || !closeNode) break;
 
-            // For VN tags, insert invisible marker before deleting
-            if (tag === 'VN') {
+            // Insert an invisible position marker before deleting, for both kinds.
+            {
                 const marker = document.createElement('span');
-                marker.className = 'phone-vn-marker';
+                marker.className = tag === 'VN' ? 'phone-vn-marker' : 'phone-img-marker';
                 marker.style.display = 'none';
                 openNode.parentNode.insertBefore(marker, openNode.splitText(openOffset));
                 // Recalculate: splitting moved content to a new text node
                 const newTextNode = marker.nextSibling;
                 openNode = newTextNode;
                 openOffset = 0;
-                vnMarkers.push(marker);
+                (tag === 'VN' ? vnMarkers : imgMarkers).push(marker);
             }
 
             const range = document.createRange();
@@ -360,7 +363,7 @@ function stripTagsFromDOM(mesText) {
         }
     }
 
-    return vnMarkers;
+    return { imgMarkers, vnMarkers };
 }
 
 /**
@@ -389,8 +392,9 @@ function removeStaticVnPlaceholders(mesText) {
         }
     });
 
-    // Clean up VN markers
+    // Clean up position markers
     mesText.find('.phone-vn-marker').remove();
+    mesText.find('.phone-img-marker').remove();
 }
 
 /**
@@ -442,7 +446,7 @@ async function onCharacterMessageRendered(messageId) {
     // Restore mode — nothing needs first-gen processing
     if (!imgNeedsGen && !vnNeedsGen && phoneMedia && Object.keys(phoneMedia).length > 0) {
         processedMessages.add(messageId);
-        const vnMarkers = stripTagsFromDOM(mesText);
+        const { vnMarkers } = stripTagsFromDOM(mesText);
         for (const [idxStr, media] of Object.entries(phoneMedia)) {
             if (media.type === 'image') {
                 const idx = parseInt(idxStr, 10);
@@ -476,7 +480,7 @@ async function onCharacterMessageRendered(messageId) {
     const vnPlaceholderRefs = vnMatches.map((_, i) => findPlaceholder(mesText, 'data-phone-vn', i, '\u25B6'));
 
     // Strip from rendered DOM — returns VN position markers
-    const vnMarkers = stripTagsFromDOM(mesText);
+    const { imgMarkers, vnMarkers } = stripTagsFromDOM(mesText);
 
     // Process voice notes (non-blocking — user clicks to play)
     for (let i = 0; i < vnMatches.length; i++) {
@@ -536,10 +540,14 @@ async function onCharacterMessageRendered(messageId) {
 
         const placeholder = findPlaceholder(mesText, 'data-phone-img', i, '\uD83D\uDCF8');
 
-        // Insert an empty wrapper to reserve the image's layout slot
+        // Insert an empty wrapper to reserve the image's layout slot. Priority:
+        // legacy model-authored placeholder div -> the tag's own position marker
+        // (v1.4 marker contract) -> append at the end as a last resort.
         const loadingHtml = buildLoadingPlaceholder();
         if (placeholder) {
             placeholder.replaceWith(loadingHtml);
+        } else if (imgMarkers[i]?.isConnected) {
+            $(imgMarkers[i]).replaceWith(loadingHtml);
         } else {
             mesText.append(loadingHtml);
         }

@@ -9,6 +9,25 @@ A SillyTavern extension that adds interactive phone media to text message / IM c
 - Turns `[VN]` voice note tags into interactive players with waveform animation and TTS playback
 - Works with Zorgonatis/Stabs-EDH preset https://github.com/Zorgonatis/Stabs-EDH
 
+## v1.4 — the marker contract
+
+The model now writes **only** the media tags, inline where the media belongs:
+
+```
+[IMG]photographic description as a generation prompt[/IMG]
+[VN]the spoken words, exactly as said[/VN]
+```
+
+No placeholder HTML. The parser inserts an invisible position marker where each tag
+sat and renders the carousel/player at that exact spot. The old model-authored
+`data-phone-img` / `data-phone-vn` divs remain fully supported (legacy fallback), so
+existing chats and old presets keep working.
+
+Import `phone-ui-preset-items-v14.json` in place of the old Photos / Voice Notes
+prompt items: **~76% fewer prompt tokens** for the same behavior, and the media stack
+no longer depends on the model reproducing styled HTML. (The Visual Toolkit / Text
+Message Behavior modules that draw the phone bubbles themselves are unchanged.)
+
 ## Requirements
 
 - SillyTavern 1.12+
