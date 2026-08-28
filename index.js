@@ -1080,6 +1080,19 @@ eventSource.on(event_types.MESSAGE_SWIPED, (messageId) => {
     processedMessages.delete(messageId);
 });
 
+// Swipe- and script-produced generations don't reliably fire
+// CHARACTER_MESSAGE_RENDERED, so tags in regenerated content sat raw until a
+// chat reload. When any generation ends, give the DOM a beat and process the
+// last message if it needs it (the processed-set makes this idempotent).
+eventSource.on(event_types.GENERATION_ENDED, () => {
+    setTimeout(() => {
+        const lastId = chat.length - 1;
+        if (lastId < 0) return;
+        processedMessages.delete(lastId);
+        onCharacterMessageRendered(lastId);
+    }, 400);
+});
+
 // Main listener
 eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, onCharacterMessageRendered);
 
