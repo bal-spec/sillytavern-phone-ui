@@ -561,8 +561,32 @@ async function onCharacterMessageRendered(messageId) {
 
             const imageUrl = result?.pipe;
             if (!imageUrl) {
-                console.warn(`[${MODULE_NAME}] /imagine returned no image URL for tag #${i}`);
-                loadingWrapper.replaceWith('<div class="phone-img-wrapper"><div class="phone-img-loading">Image generation failed</div></div>');
+                // Surface the REAL failure: the generic box hid whether this was a
+                // command error, an empty pipe, or a provider refusal.
+                console.warn(`[${MODULE_NAME}] /imagine returned no image URL for tag #${i}`, {
+                    isError: result?.isError, errorMessage: result?.errorMessage,
+                    pipe: result?.pipe, promptHead: prompt.slice(0, 80),
+                });
+                try { toastr.warning(`Image failed: ${result?.errorMessage || 'no URL returned'} — click the box to retry`, 'Phone UI', { timeOut: 8000 }); } catch { /* no toastr */ }
+                message.extra.phoneMedia[i] = { type: 'image', prompt, urls: [], failed: true };
+                const failBox = $('<div class="phone-img-wrapper"><div class="phone-img-loading phone-img-retry" style="cursor:pointer">Image generation failed — click to retry</div></div>');
+                failBox.find('.phone-img-retry').on('click', async function () {
+                    $(this).text('Retrying…');
+                    const r2 = await executeSlashCommandsWithOptions(
+                        `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(prompt)}`,
+                        { handleParserErrors: true, handleExecutionErrors: true },
+                    );
+                    if (r2?.pipe) {
+                        message.extra.phoneMedia[i] = { urls: [r2.pipe], type: 'image', prompt, activeIndex: 0 };
+                        $(this).closest('.phone-img-wrapper').replaceWith(buildImageContainer(r2.pipe, prompt, 1, 0));
+                        bindCarouselHandlers(mesText, messageId);
+                        await saveChatConditional();
+                    } else {
+                        console.warn(`[${MODULE_NAME}] retry also failed`, { isError: r2?.isError, errorMessage: r2?.errorMessage });
+                        $(this).text('Image generation failed — click to retry');
+                    }
+                });
+                loadingWrapper.replaceWith(failBox);
                 continue;
             }
 
