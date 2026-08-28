@@ -597,8 +597,28 @@ async function onCharacterMessageRendered(messageId) {
 
             message.extra.phoneMedia[i] = { urls: [imageUrl], type: 'image', prompt, activeIndex: 0 };
         } catch (error) {
+            // The last silent branch: record + retry box here too, so no failure
+            // path can consume a tag and leave nothing actionable behind.
             console.error(`[${MODULE_NAME}] Failed to generate image #${i}:`, error);
-            loadingWrapper.replaceWith('<div class="phone-img-wrapper"><div class="phone-img-loading">Image generation failed</div></div>');
+            try { toastr.warning(`Image failed: ${error?.message || error} — click the box to retry`, 'Phone UI', { timeOut: 8000 }); } catch { /* no toastr */ }
+            message.extra.phoneMedia[i] = { type: 'image', prompt, urls: [], failed: true };
+            const failBox2 = $('<div class="phone-img-wrapper"><div class="phone-img-loading phone-img-retry" style="cursor:pointer">Image generation failed — click to retry</div></div>');
+            failBox2.find('.phone-img-retry').on('click', async function () {
+                $(this).text('Retrying…');
+                const r2 = await executeSlashCommandsWithOptions(
+                    `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(prompt)}`,
+                    { handleParserErrors: true, handleExecutionErrors: true },
+                );
+                if (r2?.pipe) {
+                    message.extra.phoneMedia[i] = { urls: [r2.pipe], type: 'image', prompt, activeIndex: 0 };
+                    $(this).closest('.phone-img-wrapper').replaceWith(buildImageContainer(r2.pipe, prompt, 1, 0));
+                    bindCarouselHandlers(mesText, messageId);
+                    await saveChatConditional();
+                } else {
+                    $(this).text('Image generation failed — click to retry');
+                }
+            });
+            loadingWrapper.replaceWith(failBox2);
         }
     }
 
