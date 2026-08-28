@@ -1,0 +1,57 @@
+{
+  "description": "Phone UI prompt items — v1.4 marker contract. The model writes only [IMG]/[VN] tags inline, in ANY scene format (not just phone threads); the extension renders media at the tag position. Placeholder HTML (data-phone-img/vn divs) is legacy: still parsed, no longer taught. Import these two prompts into your preset in place of the old Photos/Voice Notes items. The Visual Toolkit / Text Message Behavior modules that draw the phone bubbles themselves are unchanged and still required for the phone LOOK; the media stack no longer depends on teaching styled placeholders.",
+  "prompts": [
+    {
+      "name": "Text Message Photos 📸 (v1.4)",
+      "role": "system",
+      "content": "### Text Message Photos\n\nWhenever a photo exists diegetically — {{char}} takes one, sends one, receives one, or looks at one, in a messaging thread OR in person — show it. Only when contextually organic; never force one per message.\n\nTo send a photo, write an image tag INLINE at the exact point where the photo appears:\n\n[IMG]a concise photographic description of the image, as a generation prompt: subject, setting, framing, lighting. Write it evocative rather than explicit — image providers filter blunt anatomical or violent phrasing; imply with silhouette, shadow, framing and light what cannot be stated[/IMG]\n\nNothing else is needed — no placeholder HTML, no container. The Phone UI extension replaces the tag with the rendered photo in place. Multiple photos = multiple tags, each where its photo belongs. This works in ANY scene, not only phone conversations.",
+      "identifier": "phoneUiPhotosV14",
+      "system_prompt": false,
+      "marker": false
+    },
+    {
+      "name": "Text Message Voice Notes 🎤 (v1.4)",
+      "role": "system",
+      "content": "### Text Message Voice Notes\n\nWhenever recorded speech exists diegetically — {{char}} sends a voice note, leaves a voicemail, plays back a recording, in a messaging thread OR in person — render it as playable audio. Only when organic; never force one.\n\nTo send a voice note, write the SPOKEN CONTENT inline at the exact point where the audio occurs:\n\n[VN]what {{char}} actually says aloud — natural speech, pauses as \"...\", laughter as *laughs*; speakable words only, no stage directions[/VN]\n\nNothing else is needed — no placeholder HTML, no container. The Phone UI extension replaces the tag with an interactive player (waveform + TTS) in place. The text inside the tag is the TTS script.",
+      "identifier": "phoneUiVoiceNotesV14",
+      "system_prompt": false,
+      "marker": false
+    }
+  ],
+  "regex_scripts": [
+    {
+      "id": "426bc96d-ecda-4e9d-9807-58c8d16e5a61",
+      "scriptName": "Strip IMG Tags from Context",
+      "findRegex": "/\\[IMG\\][\\s\\S]*?\\[\\/IMG\\]/gi",
+      "replaceString": "",
+      "trimStrings": [],
+      "placement": [
+        2
+      ],
+      "disabled": false,
+      "markdownOnly": false,
+      "promptOnly": true,
+      "runOnEdit": false,
+      "substituteRegex": 0,
+      "minDepth": 0,
+      "maxDepth": null
+    },
+    {
+      "id": "142cc976-3ed4-4bcb-8b91-211aa363c60f",
+      "scriptName": "Strip VN Tags from Context",
+      "findRegex": "/\\[VN\\][\\s\\S]*?\\[\\/VN\\]/gi",
+      "replaceString": "",
+      "trimStrings": [],
+      "placement": [
+        2
+      ],
+      "disabled": false,
+      "markdownOnly": false,
+      "promptOnly": true,
+      "runOnEdit": false,
+      "substituteRegex": 0,
+      "minDepth": 0,
+      "maxDepth": null
+    }
+  ]
+}
