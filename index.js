@@ -344,11 +344,20 @@ function stripTagsFromDOM(mesText) {
                 const marker = document.createElement('span');
                 marker.className = tag === 'VN' ? 'phone-vn-marker' : 'phone-img-marker';
                 marker.style.display = 'none';
+                const originalOpenNode = openNode;
+                const originalOpenOffset = openOffset;
                 openNode.parentNode.insertBefore(marker, openNode.splitText(openOffset));
                 // Recalculate: splitting moved content to a new text node
                 const newTextNode = marker.nextSibling;
                 openNode = newTextNode;
                 openOffset = 0;
+                // If the whole tag lived in ONE text node (plain prose), the close
+                // position was measured on the node we just truncated — retarget it to
+                // the remainder node or Range.setEnd throws IndexSizeError.
+                if (closeNode === originalOpenNode) {
+                    closeNode = newTextNode;
+                    closeOffset -= originalOpenOffset;
+                }
                 (tag === 'VN' ? vnMarkers : imgMarkers).push(marker);
             }
 
