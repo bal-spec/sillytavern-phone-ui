@@ -743,7 +743,9 @@ function bindVoiceNotePlayer(player, messageId, vnIndex) {
                 console.warn(`[${MODULE_NAME}] No voice note text found for vn${vnIndex}`);
                 return;
             }
-            const voice = name2 || 'default';
+            // In a GROUP chat name2 isn't the message's speaker — use the message's own
+            // character name so the voice note plays in that character's assigned voice.
+            const voice = message?.name || name2 || 'default';
             const ttsText = cleanVnTextForTts(vnText);
             if (!ttsText) {
                 console.warn(`[${MODULE_NAME}] Voice note text empty after cleaning`);
