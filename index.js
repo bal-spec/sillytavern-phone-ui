@@ -680,6 +680,21 @@ function restoreVoiceNote(mesText, media, index, messageId, vnMarkers) {
  * Wait for the TTS audio element to finish playback.
  * @returns {Promise<void>}
  */
+// Wait for ST's TTS audio element to exist and have a source, so we can track the
+// note /speak just started — up to timeoutMs, polling. Returns the element or null.
+function pollForTtsAudio(timeoutMs) {
+    return new Promise((resolve) => {
+        const t0 = Date.now();
+        const tick = () => {
+            const el = document.getElementById('tts_audio');
+            if (el && el.src) return resolve(el);
+            if (Date.now() - t0 > timeoutMs) return resolve(el || null);
+            setTimeout(tick, 100);
+        };
+        tick();
+    });
+}
+
 function waitForTtsPlayback() {
     const audioEl = document.getElementById('tts_audio');
 
@@ -751,17 +766,30 @@ function bindVoiceNotePlayer(player, messageId, vnIndex) {
                 console.warn(`[${MODULE_NAME}] Voice note text empty after cleaning`);
                 return;
             }
-            const { started, ended } = waitForTtsPlayback();
-            await executeSlashCommandsWithOptions(
+            // Fire TTS FIRST so ST's #tts_audio element exists; grabbing it beforehand
+            // (before any note had played this session) attached listeners to nothing
+            // and swallowed the first press. Then track the element /speak produced.
+            const speakPromise = executeSlashCommandsWithOptions(
                 `/speak voice="${voice.replace(/"/g, '')}" ${sanitizeForSlashCommand(ttsText)}`,
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
-            await started;
-
+            const audioEl = await pollForTtsAudio(4000);
             playBtn.removeClass('loading').addClass('playing').html('&#9646;&#9646;');
             waveform.addClass('playing');
-
-            await ended;
+            if (audioEl && !audioEl.ended) {
+                await new Promise((resolve) => {
+                    const done = () => {
+                        audioEl.removeEventListener('ended', done);
+                        audioEl.removeEventListener('error', done);
+                        resolve();
+                    };
+                    audioEl.addEventListener('ended', done);
+                    audioEl.addEventListener('error', done);
+                    // safety net: never hang the button if 'ended' is missed
+                    setTimeout(done, Math.max(5000, ttsText.length * 90));
+                });
+            }
+            await speakPromise.catch(() => {});
         } catch (error) {
             console.error(`[${MODULE_NAME}] Voice note playback failed:`, error);
         } finally {
