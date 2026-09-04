@@ -1147,8 +1147,11 @@ eventSource.on(event_types.GENERATION_ENDED, () => {
     setTimeout(() => {
         const lastId = chat.length - 1;
         if (lastId < 0) return;
-        processedMessages.delete(lastId);
-        onCharacterMessageRendered(lastId);
+        // Only process if CHARACTER_MESSAGE_RENDERED didn't already handle it —
+        // deleting + reprocessing here races that path and double-renders (a duplicate
+        // VN/image appended at the end when its tag is already a player). Swipes clear
+        // the flag via MESSAGE_SWIPED, so regenerated content still reprocesses.
+        if (!processedMessages.has(lastId)) onCharacterMessageRendered(lastId);
     }, 400);
 });
 
