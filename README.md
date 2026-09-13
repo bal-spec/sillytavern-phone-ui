@@ -123,6 +123,7 @@ Each generated image shows left/right arrow navigation on hover:
 - **Right arrow on the last image**: Generates a new variant using the same prompt (a spinner overlay indicates generation is in progress)
 - **Counter pill**: Shows position (e.g. "2/4") on hover
 - **Edit button** (pencil icon, bottom-right): Opens an inline editor to modify the image prompt. Click **Save** to update the prompt without regenerating, or **Save & Generate** to regenerate with the new prompt.
+- **Caption bar** (above the photo): click to fold the photo down to one line, click again to unfold. Each photo remembers its state with the message.
 - **Save to gallery button** (download icon, top-right): Saves the currently displayed image to the character gallery. Shows a checkmark when saved; saved images cannot be saved again. Each carousel variant tracks its save state independently.
 
 Images are generated with `gallery=false` so they don't clutter the character gallery by default. Use the save button to selectively keep images you like.
@@ -139,6 +140,7 @@ The voice note player shows a play button with animated waveform bars:
 
 ## Slash Commands
 
+- **`/phone-photos collapsed | expanded`**: Fold or unfold every photo in the current chat, and make that the default for new photos. No argument reports the current default.
 - **`/phone-ui`**: Manually re-process all character messages in the current chat. Use this if messages were rendered before the extension loaded. Note: images and voice notes are now automatically restored on page reload.
 
 ## Troubleshooting

@@ -1,7 +1,9 @@
-import { eventSource, event_types, chat, saveChatConditional, name2, getRequestHeaders } from '../../../../script.js';
+import { eventSource, event_types, chat, saveChatConditional, saveChatDebounced, name2, getRequestHeaders, saveSettingsDebounced } from '../../../../script.js';
+import { extension_settings } from '../../../extensions.js';
 import { executeSlashCommandsWithOptions } from '../../../slash-commands.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
+import { SlashCommandArgument, ARGUMENT_TYPE } from '../../../slash-commands/SlashCommandArgument.js';
 
 const MODULE_NAME = 'phone-ui';
 const IMG_TAG_REGEX = /\[IMG\]\s*([\s\S]*?)\s*\[\/IMG\]/gi;
@@ -9,6 +11,20 @@ const VN_TAG_REGEX = /\[VN\]\s*([\s\S]*?)\s*\[\/VN\]/gi;
 const STRIP_IMG_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]/gi; // used for message.mes stripping (VN tags kept for edit flow)
 
 const BAR_HEIGHTS = [8, 14, 6, 18, 10, 16, 7, 12, 5, 15, 9, 13];
+
+/** Extension settings (persisted in settings.json). `photosCollapsed`: whether a photo
+ *  without its own remembered state renders folded to its caption bar. */
+function settings() {
+    if (!extension_settings[MODULE_NAME]) extension_settings[MODULE_NAME] = {};
+    const s = extension_settings[MODULE_NAME];
+    if (typeof s.photosCollapsed !== 'boolean') s.photosCollapsed = false;
+    return s;
+}
+
+/** A photo's collapsed state: its own remembered choice, else the default. */
+function isCollapsed(media) {
+    return typeof media?.collapsed === 'boolean' ? media.collapsed : settings().photosCollapsed;
+}
 
 /** Lightbox singleton for full-size image viewing (uses <dialog> for top-layer rendering) */
 let lightboxEl = null;
@@ -214,7 +230,7 @@ function restoreImage(mesText, media, index) {
     const activeIndex = media.activeIndex || 0;
     const currentUrl = urls[activeIndex] || urls[0];
     const savedIndices = media.savedToGallery || [];
-    const container = buildImageContainer(currentUrl, media.prompt, urls.length, activeIndex, savedIndices);
+    const container = buildImageContainer(currentUrl, media.prompt, urls.length, activeIndex, savedIndices, isCollapsed(media));
     if (placeholder) {
         placeholder.replaceWith(container);
     } else {
@@ -231,15 +247,17 @@ function restoreImage(mesText, media, index) {
  * @param {number[]} savedIndices - Indices of variants already saved to gallery
  * @returns {string}
  */
-function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0, savedIndices = []) {
+function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0, savedIndices = [], collapsed = settings().photosCollapsed) {
     const escapedPrompt = $('<span>').text(prompt).html();
+    const caption = $('<span>').text(String(prompt || '').replace(/\s+/g, ' ').trim().slice(0, 70)).html();
     const hideLeft = activeIndex === 0 ? ' style="display:none;"' : '';
     const counterText = totalImages > 1 ? `${activeIndex + 1}/${totalImages}` : '';
     const counterHidden = totalImages <= 1 ? ' style="display:none;"' : '';
     const isSaved = savedIndices.includes(activeIndex);
     const saveIcon = isSaved ? '&#10003;' : '&#8615;';
     const savedClass = isSaved ? ' saved' : '';
-    return `<div class="phone-img-wrapper">
+    return `<div class="phone-img-wrapper${collapsed ? ' collapsed' : ''}">
+        <div class="phone-img-bar" title="${collapsed ? 'Show the photo' : 'Hide the photo'}"><span class="phone-img-bar-caret"></span><span class="phone-img-bar-label">Photo</span><span class="phone-img-bar-caption">${caption}</span></div>
         <div class="phone-img-container">
             <img class="phone-img" src="${escapeHtmlAttr(url)}" alt="Generated image" />
             <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
@@ -981,6 +999,16 @@ function bindCarouselHandlers(mesText, messageId) {
 
         bindImageEditHandler(wrapper, messageId, i);
 
+        // Caption bar: fold the photo to one line, or unfold it. Remembered per photo
+        // with the message, so a reload shows it the way it was left.
+        wrapper.find('.phone-img-bar').off('click').on('click', function () {
+            const media = chat[messageId]?.extra?.phoneMedia?.[i];
+            const now = !wrapper.hasClass('collapsed');
+            wrapper.toggleClass('collapsed', now);
+            $(this).attr('title', now ? 'Show the photo' : 'Hide the photo');
+            if (media) { media.collapsed = now; saveChatDebounced(); }
+        });
+
         // Gallery save button
         galleryBtn.off('click').on('click', async function () {
             if (galleryBtn.hasClass('saved') || galleryBtn.hasClass('saving')) return;
@@ -1166,6 +1194,35 @@ SlashCommandParser.addCommandObject(SlashCommand.fromProps({
         return 'Reprocessed all messages';
     },
     helpString: 'Re-process all character messages for [IMG] and [VN] tags. Use when the extension fails to trigger automatically.',
+}));
+
+// Fold or unfold every photo in the chat, and make that the default for new ones.
+SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+    name: 'phone-photos',
+    callback: async (_args, value) => {
+        const v = String(value || '').trim().toLowerCase();
+        if (!v) return settings().photosCollapsed ? 'collapsed' : 'expanded';
+        if (v !== 'collapsed' && v !== 'expanded') return 'Usage: /phone-photos collapsed | expanded';
+        const collapsed = v === 'collapsed';
+        settings().photosCollapsed = collapsed;
+        saveSettingsDebounced();
+        let n = 0;
+        for (const message of chat) {
+            const pm = message?.extra?.phoneMedia;
+            if (!pm) continue;
+            for (const media of Object.values(pm)) {
+                if (media?.type === 'image') { media.collapsed = collapsed; n++; }
+            }
+        }
+        $('#chat .phone-img-wrapper').toggleClass('collapsed', collapsed)
+            .find('.phone-img-bar').attr('title', collapsed ? 'Show the photo' : 'Hide the photo');
+        if (n) await saveChatConditional();
+        return `Photos ${v} (${n} in this chat; new photos start ${v}).`;
+    },
+    unnamedArgumentList: [
+        SlashCommandArgument.fromProps({ description: 'collapsed | expanded — omit to read the current default', typeList: [ARGUMENT_TYPE.STRING], enumList: ['collapsed', 'expanded'] }),
+    ],
+    helpString: 'Fold every photo in this chat to its caption bar (or unfold them), and make that the default for new photos. Click any photo\'s bar to toggle just that one.',
 }));
 
 console.log(`[${MODULE_NAME}] Extension loaded — listening for [IMG] and [VN] tags`);

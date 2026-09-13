@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+### New Features
+
+- **Collapsible photos**: every photo carries a caption bar (a caret, "Photo", and the start of its prompt). Click the bar to fold the photo down to that one line, click again to unfold. The state is saved with the message, so a reload shows each photo the way it was left.
+- **`/phone-photos collapsed | expanded`**: folds or unfolds every photo in the current chat and makes that the default for new photos. Without an argument it reports the current default.
+
 ## 1.3.0
 
 ### New Features

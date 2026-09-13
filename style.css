@@ -104,6 +104,37 @@
     margin: 4px 0;
 }
 
+/* Caption bar above each photo: click to fold the photo to this one line */
+.phone-img-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.35);
+    color: #aaa;
+    font-size: 0.8em;
+    line-height: 1.3;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 2px;
+}
+.phone-img-bar:hover { color: #ddd; border-color: rgba(255, 255, 255, 0.35); }
+.phone-img-bar-caret::before { content: '\25BE'; }
+.phone-img-wrapper.collapsed .phone-img-bar-caret::before { content: '\25B8'; }
+.phone-img-bar-label { font-weight: 600; }
+.phone-img-bar-caption {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.8;
+}
+.phone-img-wrapper.collapsed .phone-img-container,
+.phone-img-wrapper.collapsed .phone-img-editor { display: none !important; }
+
 /* Image edit button */
 .phone-img-edit-btn {
     position: absolute;
