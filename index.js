@@ -233,9 +233,29 @@ function restoreImage(mesText, media, index) {
     const container = buildImageContainer(currentUrl, media.prompt, urls.length, activeIndex, savedIndices, isCollapsed(media));
     if (placeholder) {
         placeholder.replaceWith(container);
-    } else {
-        mesText.append(container);
+        return;
     }
+    // No anchor (a message from before anchors were kept, or an edit that removed it): put the
+    // photo at the end of the phone block it belongs to, never after the whole message.
+    const home = mesText.find('[data-phone-thread], .phone-thread').last();
+    const fallback = home.length ? home : lastPhoneBlock(mesText);
+    (fallback.length ? fallback : mesText).append(container);
+}
+
+/** The innermost container that looks like a rendered phone screen: the deepest element that
+ *  holds message bubbles. Used only when a photo has lost its anchor. */
+function lastPhoneBlock(mesText) {
+    let best = $();
+    mesText.find('div').each(function () {
+        const el = $(this);
+        if (el.closest('.phone-img-wrapper, .phone-vn-wrapper').length) return;
+        const style = (el.attr('style') || '').replace(/\s/g, '');
+        const bubbles = el.children('div').filter(function () {
+            return /border-radius:1[0-9]px|border-radius:18px/.test(($(this).attr('style') || '').replace(/\s/g, ''));
+        });
+        if (bubbles.length >= 2 || /flex-direction:column/.test(style) && bubbles.length) best = el;
+    });
+    return best;
 }
 
 /**
@@ -500,8 +520,13 @@ async function onCharacterMessageRendered(messageId) {
     if (!message.extra) message.extra = {};
     if (!message.extra.phoneMedia) message.extra.phoneMedia = {};
 
-    // Strip [IMG] tags from message text (VN tags kept for edit flow)
-    message.mes = message.mes.replace(STRIP_IMG_TAGS_REGEX, '').trim();
+    // Replace each [IMG] tag with a durable anchor at its own position, rather than deleting it.
+    // Deleting it left nothing in message.mes to restore against: on the first render the photo
+    // landed correctly (a DOM marker held the spot), but after a reload restoreImage found no
+    // placeholder and appended the photo to the END of the message — outside the phone block it
+    // belonged in, which is where people saw it.
+    let imgAnchor = 0;
+    message.mes = message.mes.replace(IMG_TAG_REGEX, () => `<div data-phone-img="${imgAnchor++}"></div>`).trim();
 
     // Collect VN placeholder references BEFORE stripTagsFromDOM (which may delete them)
     const vnPlaceholderRefs = vnMatches.map((_, i) => findPlaceholder(mesText, 'data-phone-vn', i, '\u25B6'));

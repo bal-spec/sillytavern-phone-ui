@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+
+### Bug Fixes
+
+- **Photos stay inside the phone block after a reload.** Processing a message deleted its `[IMG]` tags outright, so nothing remained in the message text to restore against. The first render put the photo in the right place using a DOM marker, but on the next page load `restoreImage` found no placeholder and appended the photo — and, since 1.5.0, its caption bar — to the end of the message, outside the phone thread it belonged to. Each tag is now replaced by a `data-phone-img` anchor at its own position, and a photo that has lost its anchor is appended to the phone block rather than to the whole message.
+
 ## 1.5.0
 
 ### New Features
