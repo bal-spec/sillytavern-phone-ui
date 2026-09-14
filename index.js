@@ -6,7 +6,7 @@ import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { SlashCommandArgument, ARGUMENT_TYPE } from '../../../slash-commands/SlashCommandArgument.js';
 
 const MODULE_NAME = 'phone-ui';
-const PHONE_UI_VERSION = '1.5.2';   // keep in step with manifest.json
+const PHONE_UI_VERSION = '1.5.3';   // keep in step with manifest.json
 const IMG_TAG_REGEX = /\[IMG\]\s*([\s\S]*?)\s*\[\/IMG\]/gi;
 const VN_TAG_REGEX = /\[VN\]\s*([\s\S]*?)\s*\[\/VN\]/gi;
 const STRIP_IMG_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]/gi; // used for message.mes stripping (VN tags kept for edit flow)

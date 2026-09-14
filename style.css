@@ -102,11 +102,19 @@
 .phone-img-wrapper {
     max-width: 280px;
     margin: 4px 0;
+    /* A phone thread is a flex column, and a stretched item spans the whole screen width —
+       so the caption bar ran the full width of the thread and read as sitting outside the
+       conversation rather than belonging to the photo inside it. Shrink to the photo. */
+    width: fit-content;
+    align-self: flex-start;
 }
+.phone-img-wrapper.collapsed { min-width: 170px; }
 
 /* Caption bar above each photo: click to fold the photo to this one line */
 .phone-img-bar {
     display: flex;
+    box-sizing: border-box;
+    max-width: 280px;
     align-items: center;
     gap: 6px;
     padding: 3px 8px;

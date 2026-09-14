@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.3
+
+### Bug Fixes
+
+- **The caption bar belongs to the photo, not the thread.** A phone thread is a flex column, so the image wrapper stretched to the full screen width and the 1.5.0 caption bar ran edge to edge above the photo — reading as a strip sitting outside the conversation rather than part of the message. The wrapper now shrinks to the photo and aligns to the start, and the bar cannot exceed the photo's width.
+
 ## 1.5.2
 
 - **The running version is logged on load.** SillyTavern imports an extension from a fixed URL with no cache-buster, so a browser can keep running an old copy after an update. The console now prints `[phone-ui] v1.5.2 loaded`; if that does not match `manifest.json`, the page is stale.
