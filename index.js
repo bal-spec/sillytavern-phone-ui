@@ -6,6 +6,7 @@ import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { SlashCommandArgument, ARGUMENT_TYPE } from '../../../slash-commands/SlashCommandArgument.js';
 
 const MODULE_NAME = 'phone-ui';
+const PHONE_UI_VERSION = '1.5.2';   // keep in step with manifest.json
 const IMG_TAG_REGEX = /\[IMG\]\s*([\s\S]*?)\s*\[\/IMG\]/gi;
 const VN_TAG_REGEX = /\[VN\]\s*([\s\S]*?)\s*\[\/VN\]/gi;
 const STRIP_IMG_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]/gi; // used for message.mes stripping (VN tags kept for edit flow)
@@ -240,6 +241,7 @@ function restoreImage(mesText, media, index) {
     const home = mesText.find('[data-phone-thread], .phone-thread').last();
     const fallback = home.length ? home : lastPhoneBlock(mesText);
     (fallback.length ? fallback : mesText).append(container);
+    return fallback.length ? true : false;
 }
 
 /** The innermost container that looks like a rendered phone screen: the deepest element that
@@ -1250,4 +1252,7 @@ SlashCommandParser.addCommandObject(SlashCommand.fromProps({
     helpString: 'Fold every photo in this chat to its caption bar (or unfold them), and make that the default for new photos. Click any photo\'s bar to toggle just that one.',
 }));
 
-console.log(`[${MODULE_NAME}] Extension loaded — listening for [IMG] and [VN] tags`);
+// SillyTavern imports an extension from a FIXED url with no cache-buster, so a browser can
+// keep running an old copy after an update. Log the version: if this line does not match the
+// manifest, the page is stale and needs a hard reload.
+console.log(`[${MODULE_NAME}] v${PHONE_UI_VERSION} loaded — listening for [IMG] and [VN] tags`);

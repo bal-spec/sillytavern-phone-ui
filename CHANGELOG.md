@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2
+
+- **The running version is logged on load.** SillyTavern imports an extension from a fixed URL with no cache-buster, so a browser can keep running an old copy after an update. The console now prints `[phone-ui] v1.5.2 loaded`; if that does not match `manifest.json`, the page is stale.
+
 ## 1.5.1
 
 ### Bug Fixes
