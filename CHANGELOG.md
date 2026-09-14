@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0
+
+### New Features
+
+- **Photos look like the people in them, in group chats too.** SillyTavern applies a character's image-prompt prefix only in a 1:1 chat — `getCharacterPrefix()` returns nothing the moment a group is selected — so every photo in a group scene was generated with no description of its subject, and the generator invented strangers. The extension now prepends the prefix itself for whoever the prompt names, taken from the per-character prompt in Image Generation settings, or the card's own `sd_character_prompt` field. With neither set, nothing changes.
+
 ## 1.5.3
 
 ### Bug Fixes

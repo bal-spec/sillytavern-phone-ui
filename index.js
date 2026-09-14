@@ -1,12 +1,52 @@
 import { eventSource, event_types, chat, saveChatConditional, saveChatDebounced, name2, getRequestHeaders, saveSettingsDebounced } from '../../../../script.js';
-import { extension_settings } from '../../../extensions.js';
+import { extension_settings, getContext } from '../../../extensions.js';
 import { executeSlashCommandsWithOptions } from '../../../slash-commands.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { SlashCommandArgument, ARGUMENT_TYPE } from '../../../slash-commands/SlashCommandArgument.js';
 
 const MODULE_NAME = 'phone-ui';
-const PHONE_UI_VERSION = '1.5.3';   // keep in step with manifest.json
+const PHONE_UI_VERSION = '1.6.0';   // keep in step with manifest.json
+
+/** SillyTavern applies a character's image-prompt prefix only in a 1:1 chat — its
+ *  getCharacterPrefix() returns '' the moment a group is selected. So in any group chat a
+ *  photo is generated with no description of the people in it, and the generator invents
+ *  strangers. Prepend the prefix ourselves, for whoever the prompt actually names.
+ *  Source: the per-character prompt in Image Generation settings, else the card's own
+ *  sd_character_prompt field. Nothing is invented here; with neither set, nothing changes. */
+function appearancePrefix(prompt) {
+    try {
+        const ctx = getContext();
+        const chars = ctx.characters || [];
+        const group = (ctx.groups || []).find(g => g.id === ctx.groupId);
+        const pool = group
+            ? (group.members || []).map(av => chars.find(c => c.avatar === av)).filter(Boolean)
+            : (chars[ctx.characterId] ? [chars[ctx.characterId]] : []);
+        const esc = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const seen = new Set(), out = [];
+        for (const c of pool) {
+            const name = String(c.name || '').trim();
+            const first = name.split(/\s+/)[0];
+            if (!first) continue;
+            if (!new RegExp(`\\b(?:${esc(name)}|${esc(first)})\\b`, 'i').test(prompt)) continue;
+            const key = String(c.avatar || '').replace(/\.[^/.]+$/, '');
+            const desc = String(
+                (extension_settings.sd?.character_prompts || {})[key]
+                || c.data?.extensions?.sd_character_prompt?.positive
+                || '').trim();
+            if (desc && !seen.has(desc)) { seen.add(desc); out.push(desc); }
+        }
+        return out.join(', ');
+    } catch (e) { console.warn(`[${MODULE_NAME}] appearance prefix:`, e); return ''; }
+}
+
+/** The slash command for one image, with whoever it names described. */
+function imagineCommand(prompt) {
+    const prefix = appearancePrefix(prompt);
+    const full = prefix ? `${prefix}, ${prompt}` : prompt;
+    if (prefix) console.log(`[${MODULE_NAME}] image prompt prefixed with appearance: ${prefix.slice(0, 80)}`);
+    return `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(full)}`;
+}
 const IMG_TAG_REGEX = /\[IMG\]\s*([\s\S]*?)\s*\[\/IMG\]/gi;
 const VN_TAG_REGEX = /\[VN\]\s*([\s\S]*?)\s*\[\/VN\]/gi;
 const STRIP_IMG_TAGS_REGEX = /\[IMG\][\s\S]*?\[\/IMG\]/gi; // used for message.mes stripping (VN tags kept for edit flow)
@@ -609,7 +649,7 @@ async function onCharacterMessageRendered(messageId) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(prompt)}`,
+                imagineCommand(prompt),
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -627,7 +667,7 @@ async function onCharacterMessageRendered(messageId) {
                 failBox.find('.phone-img-retry').on('click', async function () {
                     $(this).text('Retrying…');
                     const r2 = await executeSlashCommandsWithOptions(
-                        `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(prompt)}`,
+                        imagineCommand(prompt),
                         { handleParserErrors: true, handleExecutionErrors: true },
                     );
                     if (r2?.pipe) {
@@ -660,7 +700,7 @@ async function onCharacterMessageRendered(messageId) {
             failBox2.find('.phone-img-retry').on('click', async function () {
                 $(this).text('Retrying…');
                 const r2 = await executeSlashCommandsWithOptions(
-                    `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(prompt)}`,
+                    imagineCommand(prompt),
                     { handleParserErrors: true, handleExecutionErrors: true },
                 );
                 if (r2?.pipe) {
@@ -984,7 +1024,7 @@ function bindImageEditHandler(wrapper, messageId, imgIndex) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(newPrompt)}`,
+                imagineCommand(newPrompt),
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -1141,7 +1181,7 @@ function bindCarouselHandlers(mesText, messageId) {
 
             try {
                 const result = await executeSlashCommandsWithOptions(
-                    `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(media.prompt)}`,
+                    imagineCommand(media.prompt),
                     { handleParserErrors: true, handleExecutionErrors: true },
                 );
 
