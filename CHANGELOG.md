@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.1
+
+### Bug Fixes
+
+- **A photo goes to the placeholder inside the phone bubble, not one loose in the prose.** The model usually writes its own `<div data-phone-img>` inside the thread *and* an `[IMG]` tag in the narration. Since 1.5.1 that tag became a second anchor earlier in the message, and the photo rendered there — in the prose, outside the thread, which is exactly the fault the anchor was added to fix. An anchor is now only written when the message has no placeholder of its own, and where several share an index the deepest one wins.
+
 ## 1.6.0
 
 ### New Features

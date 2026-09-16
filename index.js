@@ -6,7 +6,7 @@ import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { SlashCommandArgument, ARGUMENT_TYPE } from '../../../slash-commands/SlashCommandArgument.js';
 
 const MODULE_NAME = 'phone-ui';
-const PHONE_UI_VERSION = '1.6.0';   // keep in step with manifest.json
+const PHONE_UI_VERSION = '1.6.1';   // keep in step with manifest.json
 
 /** SillyTavern applies a character's image-prompt prefix only in a 1:1 chat — its
  *  getCharacterPrefix() returns '' the moment a group is selected. So in any group chat a
@@ -207,9 +207,19 @@ async function saveImageToGallery(imageUrl) {
 function findPlaceholder(mesText, dataAttr, index, fallbackContent) {
     const isVn = dataAttr === 'data-phone-vn';
 
-    // Try exact data attribute match first
+    // Try exact data attribute match first. Where more than one matches — a model-written
+    // placeholder inside the phone bubble and a bare one in the prose — take the DEEPEST: the
+    // shallow one is loose in the message, the nested one is inside the thread where it belongs.
     const byAttr = mesText.find(`[${dataAttr}="${index}"]`);
-    if (byAttr.length) return byAttr.first();
+    if (byAttr.length === 1) return byAttr.first();
+    if (byAttr.length > 1) {
+        let best = byAttr.first(), bestDepth = -1;
+        byAttr.each(function () {
+            const depth = $(this).parentsUntil(mesText).length;
+            if (depth > bestDepth) { bestDepth = depth; best = $(this); }
+        });
+        return best;
+    }
 
     if (isVn) {
         // Try any [data-phone-vn] attribute (LLM may use wrong index value)
@@ -562,13 +572,18 @@ async function onCharacterMessageRendered(messageId) {
     if (!message.extra) message.extra = {};
     if (!message.extra.phoneMedia) message.extra.phoneMedia = {};
 
-    // Replace each [IMG] tag with a durable anchor at its own position, rather than deleting it.
-    // Deleting it left nothing in message.mes to restore against: on the first render the photo
-    // landed correctly (a DOM marker held the spot), but after a reload restoreImage found no
-    // placeholder and appended the photo to the END of the message — outside the phone block it
-    // belonged in, which is where people saw it.
+    // Replace each [IMG] tag with a durable anchor at its own position, rather than deleting it —
+    // deleting left nothing in message.mes to restore against, so after a reload the photo was
+    // appended to the end of the message, outside the phone block.
+    // BUT only when the message has no placeholder of its own. The model usually writes its own
+    // <div data-phone-img> INSIDE the phone bubble and an [IMG] tag in the prose; adding an anchor
+    // for that tag created a second placeholder earlier in the message, and the photo went to it —
+    // landing in the prose instead of the thread, which is the very fault the anchor was for.
+    const modelPlaced = /data-phone-img/i.test(message.mes);
     let imgAnchor = 0;
-    message.mes = message.mes.replace(IMG_TAG_REGEX, () => `<div data-phone-img="${imgAnchor++}"></div>`).trim();
+    message.mes = message.mes
+        .replace(IMG_TAG_REGEX, () => modelPlaced ? '' : `<div data-phone-img="${imgAnchor++}"></div>`)
+        .trim();
 
     // Collect VN placeholder references BEFORE stripTagsFromDOM (which may delete them)
     const vnPlaceholderRefs = vnMatches.map((_, i) => findPlaceholder(mesText, 'data-phone-vn', i, '\u25B6'));
