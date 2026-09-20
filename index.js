@@ -195,6 +195,24 @@ async function saveImageToGallery(imageUrl) {
     }
 }
 
+/** A photo box the model drew itself: a leaf element whose whole text is a placeholder word,
+ *  usually a styled black rectangle sitting inside its own hand-built phone card. The model
+ *  writes one of these AND an [IMG] tag out in the prose, so the anchor placed at the tag's
+ *  position is beside the card while the box inside it stays empty — which is what "the photo
+ *  is not appearing in the text message" looks like. */
+const PHOTO_BOX_TEXT = /^[\s\[\(<]*(?:\uD83D\uDCF8|\uD83D\uDCF7|\uD83D\uDDBC\uFE0F?)?\s*(?:photo|image|img|picture|pic|attachment|sent a photo|photo attached)\s*(?:here)?\s*[\]\)>.]*$/i;
+function modelPhotoBoxes(mesText) {
+    const out = [];
+    mesText.find('div, span, td, p').each(function () {
+        const el = $(this);
+        if (el.children().length) return;                                  // leaves only
+        if (el.closest('.phone-img-wrapper, .phone-vn-wrapper').length) return;
+        if (el.is('[data-phone-img], [data-phone-vn]')) return;            // a real anchor, handled above
+        if (PHOTO_BOX_TEXT.test(el.text().trim())) out.push(el);
+    });
+    return out;
+}
+
 /**
  * Find the Nth placeholder element in the rendered message by data attribute,
  * falling back to content-based matching.
@@ -210,14 +228,21 @@ function findPlaceholder(mesText, dataAttr, index, fallbackContent) {
     // Try exact data attribute match first. Where more than one matches — a model-written
     // placeholder inside the phone bubble and a bare one in the prose — take the DEEPEST: the
     // shallow one is loose in the message, the nested one is inside the thread where it belongs.
-    const byAttr = mesText.find(`[${dataAttr}="${index}"]`);
-    if (byAttr.length === 1) return byAttr.first();
-    if (byAttr.length > 1) {
-        let best = byAttr.first(), bestDepth = -1;
-        byAttr.each(function () {
-            const depth = $(this).parentsUntil(mesText).length;
-            if (depth > bestDepth) { bestDepth = depth; best = $(this); }
-        });
+    const pool = mesText.find(`[${dataAttr}="${index}"]`).toArray().map(el => $(el));
+    // A box the model drew inside its own phone card counts as a candidate too, and being
+    // nested it wins the depth rule below — the anchor we put at the [IMG] tag is a direct
+    // child of the message, out in the prose.
+    if (!isVn) {
+        const box = modelPhotoBoxes(mesText)[index];
+        if (box) pool.push(box);
+    }
+    if (pool.length === 1) return pool[0];
+    if (pool.length > 1) {
+        let best = pool[0], bestDepth = -1;
+        for (const el of pool) {
+            const depth = el.parentsUntil(mesText).length;
+            if (depth > bestDepth) { bestDepth = depth; best = el; }
+        }
         return best;
     }
 
@@ -687,7 +712,8 @@ async function onCharacterMessageRendered(messageId) {
                     );
                     if (r2?.pipe) {
                         message.extra.phoneMedia[i] = { urls: [r2.pipe], type: 'image', prompt, activeIndex: 0 };
-                        $(this).closest('.phone-img-wrapper').replaceWith(buildImageContainer(r2.pipe, prompt, 1, 0));
+                        const fold = $(this).closest('.phone-img-wrapper').hasClass('collapsed') || isCollapsed(message.extra.phoneMedia[i]);
+                        $(this).closest('.phone-img-wrapper').replaceWith(buildImageContainer(r2.pipe, prompt, 1, 0, [], fold));
                         bindCarouselHandlers(mesText, messageId);
                         await saveChatConditional();
                     } else {
@@ -701,10 +727,11 @@ async function onCharacterMessageRendered(messageId) {
 
             console.log(`[${MODULE_NAME}] Image #${i} generated: ${imageUrl}`);
 
-            const containerHtml = buildImageContainer(imageUrl, prompt, 1, 0);
+            const bornCollapsed = settings().photosCollapsed;
+            const containerHtml = buildImageContainer(imageUrl, prompt, 1, 0, [], bornCollapsed);
             loadingWrapper.replaceWith(containerHtml);
 
-            message.extra.phoneMedia[i] = { urls: [imageUrl], type: 'image', prompt, activeIndex: 0 };
+            message.extra.phoneMedia[i] = { urls: [imageUrl], type: 'image', prompt, activeIndex: 0, collapsed: bornCollapsed };
         } catch (error) {
             // The last silent branch: record + retry box here too, so no failure
             // path can consume a tag and leave nothing actionable behind.
@@ -720,7 +747,8 @@ async function onCharacterMessageRendered(messageId) {
                 );
                 if (r2?.pipe) {
                     message.extra.phoneMedia[i] = { urls: [r2.pipe], type: 'image', prompt, activeIndex: 0 };
-                    $(this).closest('.phone-img-wrapper').replaceWith(buildImageContainer(r2.pipe, prompt, 1, 0));
+                    const fold = $(this).closest('.phone-img-wrapper').hasClass('collapsed') || isCollapsed(message.extra.phoneMedia[i]);
+                        $(this).closest('.phone-img-wrapper').replaceWith(buildImageContainer(r2.pipe, prompt, 1, 0, [], fold));
                     bindCarouselHandlers(mesText, messageId);
                     await saveChatConditional();
                 } else {

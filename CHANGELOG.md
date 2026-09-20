@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0
+
+### Bug Fixes
+
+- **The photo lands in the box the model drew for it.** When a model builds its own phone card it often draws a styled rectangle reading `[ photo ]` inside the thread and writes the `[IMG]` tag out in the narration. The anchor placed at the tag's position is a direct child of the message, so the real photo rendered beside the card while the black box inside it stayed empty for good. A leaf element whose whole text is a placeholder word is now a candidate placeholder too, and being nested inside the card it wins the deepest-wins rule.
+- **A photo remembers how it was folded.** The fold was stored per photo when you clicked the bar, but a photo that had never been clicked inherited whatever the global default happened to be at render time, so changing the default refolded old photos. A photo now records the fold it was born with, and both retry paths rebuild with the fold it already had instead of the default.
+
 ## 1.6.1
 
 ### Bug Fixes
