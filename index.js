@@ -164,7 +164,31 @@ function escapeHtmlAttr(str) {
  * @param {string} imageUrl - The server-relative URL of the image (e.g. /user/images/foo.png)
  * @returns {Promise<void>}
  */
-async function saveImageToGallery(imageUrl) {
+/**
+ * The gallery folder a message's photo belongs in: its sender's, as SillyTavern's own Gallery resolves it
+ * (a custom folder set for that card, else the card's name). `name2` is not the sender in a group chat — every
+ * scene in a group was filed under whoever happened to be current, or under no character at all. A photo the
+ * Narrator posts goes to the chat's one character, when there is exactly one.
+ * @param {object} message
+ * @returns {string}
+ */
+function galleryFolderFor(message) {
+    const ctx = getContext();
+    const chars = ctx.characters || [];
+    const folders = extension_settings.gallery?.folders || {};
+    const folderOf = (c) => (c ? (folders[c.avatar] ?? c.name) : '');
+    let ch = chars.find(c => message?.original_avatar && c.avatar === message.original_avatar)
+        || chars.find(c => message?.name && c.name === message.name);
+    if (!ch || /^narrator$/i.test(ch.name || '')) {
+        const group = (ctx.groups || []).find(g => g.id === ctx.groupId);
+        const members = (group?.members || []).map(av => chars.find(c => c.avatar === av)).filter(c => c && !/^narrator$/i.test(c.name || ''));
+        if (members.length === 1) ch = members[0];
+        else if (!ch) return name2 || '';
+    }
+    return folderOf(ch);
+}
+
+async function saveImageToGallery(imageUrl, folder = '') {
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
 
@@ -177,7 +201,7 @@ async function saveImageToGallery(imageUrl) {
     });
 
     const ext = imageUrl.split('.').pop().split('?')[0] || 'png';
-    const charName = name2 || '';
+    const charName = folder || name2 || '';
 
     const uploadResponse = await fetch('/api/images/upload', {
         method: 'POST',
@@ -1131,7 +1155,7 @@ function bindCarouselHandlers(mesText, messageId) {
             galleryBtn.addClass('saving').empty();
 
             try {
-                await saveImageToGallery(currentUrl);
+                await saveImageToGallery(currentUrl, galleryFolderFor(message));
 
                 if (!media.savedToGallery) media.savedToGallery = [];
                 const idx = media.activeIndex ?? 0;

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.1
+- Saving a photo to the gallery files it under the character who sent it (or the chat's one character, for a Narrator message), using SillyTavern's own gallery folder for that card. In a group chat it had gone to whoever happened to be current, or to no character at all.
+
 ## 1.7.0
 
 ### Bug Fixes
