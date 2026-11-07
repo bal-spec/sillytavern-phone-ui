@@ -516,3 +516,12 @@
     cursor: default;
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
+
+/* Delete, in the caption bar so it is there when the photo is folded too */
+.phone-img-delete-btn {
+    margin-left: auto;
+    padding: 0 2px 0 6px;
+    opacity: 0.55;
+    cursor: pointer;
+}
+.phone-img-delete-btn:hover { opacity: 1; color: #ff6b6b; }

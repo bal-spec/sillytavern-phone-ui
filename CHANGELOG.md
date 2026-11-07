@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.0
+- **A photo that names no one looks like whoever sent it.** The look from Image Generation's character prompts was added only for the people a photo's prompt names. Some models write "a woman with long dark hair" and no name, so nothing was added and the generator drew a stranger. When the prompt names no one in the chat, the sender's look is added.
+- **A photo can be deleted.** 🗑 in the photo's caption bar deletes the whole photo, or, when it has several versions, just the one on screen. A deleted photo is not generated again on reload. The image files stay in `user/images`.
+- The version logged on load had been left at 1.6.1; it now matches the manifest.
+
 ## 1.7.1
 - Saving a photo to the gallery files it under the character who sent it (or the chat's one character, for a Narrator message), using SillyTavern's own gallery folder for that card. In a group chat it had gone to whoever happened to be current, or to no character at all.
 

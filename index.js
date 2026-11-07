@@ -4,9 +4,10 @@ import { executeSlashCommandsWithOptions } from '../../../slash-commands.js';
 import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { SlashCommandArgument, ARGUMENT_TYPE } from '../../../slash-commands/SlashCommandArgument.js';
+import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
 
 const MODULE_NAME = 'phone-ui';
-const PHONE_UI_VERSION = '1.6.1';   // keep in step with manifest.json
+const PHONE_UI_VERSION = '1.8.0';   // keep in step with manifest.json
 
 /** SillyTavern applies a character's image-prompt prefix only in a 1:1 chat — its
  *  getCharacterPrefix() returns '' the moment a group is selected. So in any group chat a
@@ -14,7 +15,9 @@ const PHONE_UI_VERSION = '1.6.1';   // keep in step with manifest.json
  *  strangers. Prepend the prefix ourselves, for whoever the prompt actually names.
  *  Source: the per-character prompt in Image Generation settings, else the card's own
  *  sd_character_prompt field. Nothing is invented here; with neither set, nothing changes. */
-function appearancePrefix(prompt) {
+// A model that writes "a stunning woman with long dark wavy hair" names no one, so nothing was added and the
+// generator drew a stranger. A photo with no one named is taken to be of whoever sent it.
+function appearancePrefix(prompt, sender = '') {
     try {
         const ctx = getContext();
         const chars = ctx.characters || [];
@@ -36,13 +39,19 @@ function appearancePrefix(prompt) {
                 || '').trim();
             if (desc && !seen.has(desc)) { seen.add(desc); out.push(desc); }
         }
+        if (!out.length && sender) {
+            const c = pool.find(x => String(x.name || '').trim().toLowerCase() === String(sender).trim().toLowerCase());
+            const key = String(c?.avatar || '').replace(/\.[^/.]+$/, '');
+            const desc = String((extension_settings.sd?.character_prompts || {})[key] || c?.data?.extensions?.sd_character_prompt?.positive || '').trim();
+            if (desc) out.push(desc);
+        }
         return out.join(', ');
     } catch (e) { console.warn(`[${MODULE_NAME}] appearance prefix:`, e); return ''; }
 }
 
 /** The slash command for one image, with whoever it names described. */
-function imagineCommand(prompt) {
-    const prefix = appearancePrefix(prompt);
+function imagineCommand(prompt, sender = '') {
+    const prefix = appearancePrefix(prompt, sender);
     const full = prefix ? `${prefix}, ${prompt}` : prompt;
     if (prefix) console.log(`[${MODULE_NAME}] image prompt prefixed with appearance: ${prefix.slice(0, 80)}`);
     return `/imagine quiet=true gallery=false ${sanitizeForSlashCommand(full)}`;
@@ -326,6 +335,10 @@ function findPlaceholder(mesText, dataAttr, index, fallbackContent) {
  */
 function restoreImage(mesText, media, index) {
     const placeholder = findPlaceholder(mesText, 'data-phone-img', index, '\uD83D\uDCF8');
+    if (media.deleted) {   // kept as an empty slot so the photos after it keep their numbers
+        if (placeholder) placeholder.replaceWith(DELETED_SLOT); else mesText.append(DELETED_SLOT);
+        return;
+    }
     const urls = media.urls || [media.url];
     const activeIndex = media.activeIndex || 0;
     const currentUrl = urls[activeIndex] || urls[0];
@@ -341,6 +354,34 @@ function restoreImage(mesText, media, index) {
     const fallback = home.length ? home : lastPhoneBlock(mesText);
     (fallback.length ? fallback : mesText).append(container);
     return fallback.length ? true : false;
+}
+
+const DELETED_SLOT = '<div class="phone-img-wrapper phone-img-deleted" style="display:none"></div>';
+
+/** Delete a photo: only the version on screen, or the whole photo. The message keeps an empty slot for it, so it is
+ *  not generated again and the photos after it keep their places. The files stay in user/images. */
+async function deletePhoto(wrapper, messageId, i) {
+    const media = chat[messageId]?.extra?.phoneMedia?.[i];
+    if (!media) return;
+    if (media.url && !media.urls) { media.urls = [media.url]; media.activeIndex = 0; delete media.url; }
+    const n = (media.urls || []).length;
+    const res = await callGenericPopup(n > 1 ? `Delete this photo? It has ${n} versions.` : 'Delete this photo?', POPUP_TYPE.CONFIRM, '', {
+        okButton: 'Delete the photo', cancelButton: 'Cancel',
+        customButtons: n > 1 ? [{ text: 'Only this version', result: 2 }] : [],
+    });
+    if (res === 2) {
+        const at = media.activeIndex || 0;
+        media.urls.splice(at, 1);
+        media.savedToGallery = (media.savedToGallery || []).filter(x => x !== at).map(x => (x > at ? x - 1 : x));
+        media.activeIndex = Math.min(at, media.urls.length - 1);
+        const fold = wrapper.hasClass('collapsed');
+        wrapper.replaceWith(buildImageContainer(media.urls[media.activeIndex], media.prompt, media.urls.length, media.activeIndex, media.savedToGallery, fold));
+    } else if (res === POPUP_TYPE.CONFIRM || res === 1 || res === true) {
+        chat[messageId].extra.phoneMedia[i] = { type: 'image', prompt: media.prompt, urls: [], deleted: true };
+        wrapper.replaceWith(DELETED_SLOT);
+    } else return;
+    bindCarouselHandlers($(`#chat .mes[mesid="${messageId}"] .mes_text`), messageId);
+    await saveChatConditional();
 }
 
 /** The innermost container that looks like a rendered phone screen: the deepest element that
@@ -378,7 +419,7 @@ function buildImageContainer(url, prompt, totalImages = 1, activeIndex = 0, save
     const saveIcon = isSaved ? '&#10003;' : '&#8615;';
     const savedClass = isSaved ? ' saved' : '';
     return `<div class="phone-img-wrapper${collapsed ? ' collapsed' : ''}">
-        <div class="phone-img-bar" title="${collapsed ? 'Show the photo' : 'Hide the photo'}"><span class="phone-img-bar-caret"></span><span class="phone-img-bar-label">Photo</span><span class="phone-img-bar-caption">${caption}</span></div>
+        <div class="phone-img-bar" title="${collapsed ? 'Show the photo' : 'Hide the photo'}"><span class="phone-img-bar-caret"></span><span class="phone-img-bar-label">Photo</span><span class="phone-img-bar-caption">${caption}</span><span class="phone-img-delete-btn" title="Delete this photo">&#128465;</span></div>
         <div class="phone-img-container">
             <img class="phone-img" src="${escapeHtmlAttr(url)}" alt="Generated image" />
             <button class="phone-img-nav phone-img-nav-left"${hideLeft} title="Previous">\u2039</button>
@@ -713,7 +754,7 @@ async function onCharacterMessageRendered(messageId) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                imagineCommand(prompt),
+                imagineCommand(prompt, message?.name),
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -731,7 +772,7 @@ async function onCharacterMessageRendered(messageId) {
                 failBox.find('.phone-img-retry').on('click', async function () {
                     $(this).text('Retrying…');
                     const r2 = await executeSlashCommandsWithOptions(
-                        imagineCommand(prompt),
+                        imagineCommand(prompt, message?.name),
                         { handleParserErrors: true, handleExecutionErrors: true },
                     );
                     if (r2?.pipe) {
@@ -766,7 +807,7 @@ async function onCharacterMessageRendered(messageId) {
             failBox2.find('.phone-img-retry').on('click', async function () {
                 $(this).text('Retrying…');
                 const r2 = await executeSlashCommandsWithOptions(
-                    imagineCommand(prompt),
+                    imagineCommand(prompt, message?.name),
                     { handleParserErrors: true, handleExecutionErrors: true },
                 );
                 if (r2?.pipe) {
@@ -1091,7 +1132,7 @@ function bindImageEditHandler(wrapper, messageId, imgIndex) {
 
         try {
             const result = await executeSlashCommandsWithOptions(
-                imagineCommand(newPrompt),
+                imagineCommand(newPrompt, chat[messageId]?.name),
                 { handleParserErrors: true, handleExecutionErrors: true },
             );
 
@@ -1132,6 +1173,11 @@ function bindCarouselHandlers(mesText, messageId) {
         const galleryBtn = container.find('.phone-img-gallery-btn');
 
         bindImageEditHandler(wrapper, messageId, i);
+
+        wrapper.find('.phone-img-delete-btn').off('click').on('click', function (ev) {
+            ev.stopPropagation();   // the bar it sits in folds the photo
+            deletePhoto(wrapper, messageId, i).catch(e => console.error(`[${MODULE_NAME}] delete photo:`, e));
+        });
 
         // Caption bar: fold the photo to one line, or unfold it. Remembered per photo
         // with the message, so a reload shows it the way it was left.
@@ -1248,7 +1294,7 @@ function bindCarouselHandlers(mesText, messageId) {
 
             try {
                 const result = await executeSlashCommandsWithOptions(
-                    imagineCommand(media.prompt),
+                    imagineCommand(media.prompt, chat[messageId]?.name),
                     { handleParserErrors: true, handleExecutionErrors: true },
                 );
 
